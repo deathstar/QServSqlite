@@ -23,9 +23,10 @@ REQUIREMENTS FOR COMPILING
 
 **LINUX**
 
- - install CMake from terminal: "sudo apt-get install cmake" 
- - install Zlib from Terminal: "sudo apt-get install zlib1g-dev"
- - install a compiler from Terminal: "sudo apt-get install build-essential"
+ - install CMake: "sudo apt-get install cmake" 
+ - install Zlib: "sudo apt-get install zlib1g-dev"
+ - install sqlite3: "sudo apt install libsqlite3-dev"
+ - install a compiler: "sudo apt-get install build-essential"
  
 **WINDOWS**
 
@@ -34,21 +35,11 @@ REQUIREMENTS FOR COMPILING
 COMPILATION INSTRUCTIONS
 --------------------------
 
-Please make sure you have all of the requirements for compiling (listed above) installed before continuing.
+Please make sure you have all of the requirements for compiling (listed above) installed before continuing. 
 
-1) Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020" from command line (requires git): "sudo apt-get install git" or http://sourceforge.net/projects/git-osx-installer/
-
-2) place the qserv2020 folder on your Desktop and make sure it's named accordingly 
-
-3) Open command line and type: "cd Desktop/qserv2020"
-
-4) Run the cmake command (or select the qserv2020 folder from the CMake GUI): "cmake ."
-
-5) Run the make command: "make"
-
-6) Run the start server command: "./qserv" for a live log, "nohup ./qserv &" for background
-
-Note: if you just use "./qserv" you will need to keep the window open to keep the server running. It is suggested that you always run "nohup ./qserv &" to keep the server up in the background and output the log to nohup.out.
+1) Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020" from command line 
+2) run "cmake .; make" to compile QServ
+6) Run the start server command: "./qserv" for a live log, "nohup ./qserv &" to run your server in the background; The log will append to nohup.out.
 
 - Press Control-C to stop, or use "top" to get the PID of QServ then use "kill PID" to kill a background server
 
@@ -70,6 +61,10 @@ flagruns not storing: You can just use "chmod -R 777 qserv2020" from the command
 QServ IRC not launching at all: you either restarted the server too much or flooded IRC, try a different IRC server.
 
 segmentation fault: send the server logs to DeathStar - gscottmalibu@gmail.com for debugging.
+
+Compile failures: you can attempt to compile enet/sqlite/geoip/zlib manually. The compilation is usually done by changing to the relevant directory and then running: "./configure; make"
+
+localhost failures: try using HTTP Geolocation with use_HTTP_geo 1 in server-init.cfg to fix these issues.
 
 MIT LICENSE 
 ----------------
