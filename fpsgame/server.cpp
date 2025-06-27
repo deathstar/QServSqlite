@@ -1959,7 +1959,7 @@ namespace server {
     
                     defformatstring(msg)("Lifetime stats for %s - Frags: %d, Deaths: %d, Flags: %d, K/D: %.2f",
                         ci->name, frags, deaths, flags, kd);
-                    sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
+                    out(ECHO_SERV, msg);
                 }
                 else
                 {
