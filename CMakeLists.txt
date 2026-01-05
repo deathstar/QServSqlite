@@ -1,8 +1,26 @@
 cmake_minimum_required(VERSION 2.7)
-
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_STANDARD 14)
 
 project(qserv)
+
+if(APPLE)
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+        execute_process(
+            COMMAND uname -m
+            OUTPUT_VARIABLE HOST_ARCH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(HOST_ARCH STREQUAL "x86_64")
+            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+        elseif(HOST_ARCH STREQUAL "arm64")
+            set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+        else()
+            message(WARNING "Unknown macOS architecture '${HOST_ARCH}', defaulting to x86_64")
+            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+        endif()
+    endif()
+endif()
+
 subdirs(enet GeoIP)
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
