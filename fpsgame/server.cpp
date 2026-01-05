@@ -2903,12 +2903,13 @@ best.add(clients[i]); \
             if(!firstblood && actor != target) { firstblood = true; out(ECHO_SERV, "\f0%s \f7drew \f6FIRST BLOOD!", colorname(actor)); }
             if(actor != target && actor->state.aitype == AI_NONE) actor->state.spreefrags++;
             if(target->state.spreefrags >= minspreefrags && target->state.aitype == AI_NONE) {
-                if(actor == target)
-					if(enable_suicidemsg) {
-                    	out(ECHO_SERV, "\f0%s \f7%s", colorname(target), spreesuicidemsg);
-					}
-                else
-                    out(ECHO_SERV, "\f0%s's \f7%s \f6%s", colorname(target), spreefinmsg, colorname(actor));
+				if(actor == target) {
+    				if(enable_suicidemsg) {
+        				out(ECHO_SERV, "\f0%s \f7%s", colorname(target), spreesuicidemsg);
+    				}
+				} else {
+    				out(ECHO_SERV, "\f0%s's \f7%s \f6%s", colorname(target), spreefinmsg, colorname(actor));
+				}
             }
             target->state.spreefrags = 0;
             target->state.multifrags = 0;
