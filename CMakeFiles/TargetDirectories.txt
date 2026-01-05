@@ -1,3 +1,0 @@
-/Users/user/desktop/messyq/GeoIP/CMakeFiles/GeoIP.dir
-/Users/user/desktop/messyq/enet/CMakeFiles/enet.dir
-/Users/user/desktop/messyq/CMakeFiles/qserv.dir
