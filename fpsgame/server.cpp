@@ -456,6 +456,7 @@ namespace server {
     VAR(enablemultiplemasters, 0, 0, 1);             //enables /setmaster 1 for multiple clients (stops need for #sendprivs or givemaster)
     VAR(persistteams, 0, 0, 1);                      //persistant teams across matches
     VAR(httpgeolocation, 0, 1, 1);                   //http geolocation, if 0 then use geoip
+	VAR(enable_suicidemsg, 0, 0, 1);                 //enables/disables message sent to everyone when someone suicides
         
     VARF(publicserver, 0, 0, 2, {
         switch(publicserver)
@@ -2903,7 +2904,9 @@ best.add(clients[i]); \
             if(actor != target && actor->state.aitype == AI_NONE) actor->state.spreefrags++;
             if(target->state.spreefrags >= minspreefrags && target->state.aitype == AI_NONE) {
                 if(actor == target)
-                    out(ECHO_SERV, "\f0%s \f7%s", colorname(target), spreesuicidemsg);
+					if(enable_suicidemsg) {
+                    	out(ECHO_SERV, "\f0%s \f7%s", colorname(target), spreesuicidemsg);
+					}
                 else
                     out(ECHO_SERV, "\f0%s's \f7%s \f6%s", colorname(target), spreefinmsg, colorname(actor));
             }
@@ -2946,7 +2949,9 @@ best.add(clients[i]); \
         gs.lastdeath = gamemillis;
         gs.respawn();
         ci->state._suicides++;
-        out(ECHO_SERV, "\f0%s \f7%s", colorname(ci), spreesuicidemsg);
+		if(enable_suicidemsg) {
+        	out(ECHO_SERV, "\f0%s \f7%s", colorname(ci), spreesuicidemsg);
+		}
     }
     
     void suicideevent::process(clientinfo *ci) { suicide(ci); }
