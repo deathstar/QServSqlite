@@ -1957,7 +1957,7 @@ namespace server {
                     int flags = sqlite3_column_int(stmt, 2);
                     float kd = (float)sqlite3_column_double(stmt, 3);
     
-                    defformatstring(msg)("Lifetime stats for %s - Frags: %d, Deaths: %d, Flags: %d, K/D: %.2f",
+                    defformatstring(msg)("Lifetime stats for \f0%s \f7- Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
                         ci->name, frags, deaths, flags, kd);
                     out(ECHO_SERV, msg);
                 }
