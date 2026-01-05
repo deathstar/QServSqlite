@@ -38,7 +38,7 @@ COMPILATION INSTRUCTIONS
 Please make sure you have all of the requirements for compiling (listed above) installed before continuing. 
 
 1) Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020"
-2) run "cmake .; make" to compile QServ
+2) run "cmake .; make" to compile QServ (note: if you're compiling on a new ARM (M) mac, you may need to run: "cmake . -DCMAKE_OSX_ARCHITECTURES=arm64; make -j$(sysctl -n hw.ncpu)"
 6) Run the start server command: "./qserv" for a live log, "nohup ./qserv &" to run your server in the background; The log will append to nohup.out.
 
 - Press Control-C to stop, or use "top" to get the PID of QServ then use "kill PID" to kill a background server
