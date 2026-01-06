@@ -69,7 +69,7 @@ localhost failures: try using HTTP Geolocation with use_HTTP_geo 1 in server-ini
 MIT LICENSE 
 ----------------
 
-Copyright (c) 2026 George Scott, Stephen Caples, Jonlimle, Andrius4669, Eric Zeiger, Mihai Draghicioiu, BudSpencer, Zer0TraceX
+Copyright (c) 2026 George Scott, Stephen Caples, Jonlimle, Andrius4669, Eric Zeiger, Mihai Draghicioiu, BudSpencer, Zer0TraceX, Lorenzo Pistone
 
 Many people have helped work on QServ over the years and add a lot of features, as it has been around for a long time (17 years). A lot of the features were also taken from other Sauerbraten server mods and compiled into this one to create an extremely feature rich mod. Credit has been given to everyone that has made this project possible.
 
