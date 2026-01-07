@@ -457,6 +457,8 @@ namespace server {
     VAR(persistteams, 0, 0, 1);                      //persistant teams across matches
     VAR(httpgeolocation, 0, 1, 1);                   //http geolocation, if 0 then use geoip
 	VAR(enable_suicidemsg, 0, 0, 1);                 //enables/disables message sent to everyone when someone suicides
+	VAR(enable_healteammates, 0, 0, 1);              //enables/disables the ability to heal teammates by shooting them 
+	VAR(healamount, 1, 1000, INT_MAX);               //how much hp a teammate receives when shot if enable_healteammates is true
         
     VARF(publicserver, 0, 0, 2, {
         switch(publicserver)
@@ -2843,9 +2845,21 @@ best.add(clients[i]); \
     {
         actor->state.guninfo[gun].damage += damage; //damage by gun for #stats
         gamestate &ts = target->state;
-        if(enable_passflag && actor!=target && isteam(actor->team, target->team)) {
-            ctfmode.dopassflagsequence(actor,target);
-            return;
+        if(actor != target && m_teammode && isteam(actor->team, target->team)) {
+        	if(ts.state != CS_ALIVE) return; 
+        		if(enable_healteammates) {
+        			ts.health += healamount;
+					if(target->state.aitype == AI_NONE) {
+						//send fake damage to update player HUD
+					    sendf(target->clientnum, 1, "ri", N_DAMAGE, 1);
+					    ts.health -= 1;
+					    sendf(target->clientnum, 1, "ri", N_DAMAGE, -healamount);
+					}
+                }
+            	if(enable_passflag) {
+                   ctfmode.dopassflagsequence(actor, target);
+               	}
+               damage = 0;
         }
         if(!nodamage) {
             ts.dodamage(damage);
