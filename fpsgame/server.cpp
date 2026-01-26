@@ -1966,7 +1966,7 @@ namespace server {
                 }
                 else
                 {
-                    defformatstring(msg)("Welcome, %s! No stats found yet — go make your mark!", ci->name);
+                    defformatstring(msg)("Welcome, %s! No stats found yet, go make your mark!", ci->name);
                     sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
                 }
                 sqlite3_finalize(stmt);
