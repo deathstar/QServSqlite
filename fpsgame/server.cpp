@@ -2447,10 +2447,16 @@ namespace server {
             if(idx < 0) return;
             map = maprotations[idx].map;
         }
-        if(lockmaprotation && !ci->local && ci->privilege < (lockmaprotation > 1 ? PRIV_ADMIN : PRIV_MASTER) && findmaprotation(reqmode, map) < 0)
-        {
-            sendf(sender, 1, "ris", N_SERVMSG, "\f3Error: You may not select a different mode/map");
-            return;
+       // block map vote if rotation is locked and voter is not master/admin
+	   if(lockmaprotation && !ci->local)
+	   {
+            bool haspriv = (ci->privilege == PRIV_ADMIN || ci->privilege == PRIV_MASTER);
+
+            if(!haspriv)
+            {
+                sendf(sender, 1, "ris", N_SERVMSG, "This server has locked the map rotation.");
+                return;
+            }
         }
         copystring(ci->mapvote, map);
         ci->modevote = reqmode;
