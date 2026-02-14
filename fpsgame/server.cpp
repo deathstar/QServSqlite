@@ -1941,39 +1941,142 @@ namespace server {
      extern void forcemap(const char *map, int mode);
      extern void vote(const char *map, int reqmode, int sender);
      */
-    
-    void sendplayerstats(clientinfo *ci)
+    static void make_name_key_utf8(const char *in, char *out, int outlen)
     {
-        sqlite3 *db;
-        sqlite3_stmt *stmt;
-        int rc = sqlite3_open("playerinfo.db", &db);
-        if(rc == SQLITE_OK)
-        {
-            const char *sql = "SELECT FRAGS, DEATHS, FLAGS, KD FROM PLAYERINFO WHERE NAME = ?;";
-            if(sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) == SQLITE_OK)
-            {
-                sqlite3_bind_text(stmt, 1, ci->name, -1, SQLITE_STATIC);
-                if(sqlite3_step(stmt) == SQLITE_ROW)
-                {
-                    int frags = sqlite3_column_int(stmt, 0);
-                    int deaths = sqlite3_column_int(stmt, 1);
-                    int flags = sqlite3_column_int(stmt, 2);
-                    float kd = (float)sqlite3_column_double(stmt, 3);
+        if(!in || outlen <= 0) { if(outlen > 0) out[0] = '\0'; return; }
     
-                    defformatstring(msg)("Lifetime stats for \f0%s \f7- Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
-                        ci->name, frags, deaths, flags, kd);
-                    out(ECHO_SERV, msg);
-                }
-                else
-                {
-                    defformatstring(msg)("Welcome, %s! No stats found yet, go make your mark!", ci->name);
-                    sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
-                }
-                sqlite3_finalize(stmt);
+        int j = 0;
+        for(int i = 0; in[i] && j < outlen-1; i++)
+        {
+            unsigned char c = (unsigned char)in[i];
+    
+            // Strip Sauer/Cube color codes: \fX
+            if(c == '\f')
+            {
+                if(in[i+1]) i++;
+                continue;
             }
-            sqlite3_close(db);
+    
+            // Strip ASCII control chars only
+            if(c < 32) continue;
+    
+            // Keep UTF-8 bytes (>= 128) untouched
+            out[j++] = (char)c;
         }
+        out[j] = '\0';
+    
+        // Trim ASCII whitespace
+        while(j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) out[--j] = '\0';
+        int start = 0;
+        while(out[start] == ' ' || out[start] == '\t') start++;
+        if(start > 0) memmove(out, out + start, j - start + 1);
+    
+        if(!out[0]) strncpy(out, "unnamed", outlen-1), out[outlen-1] = '\0';
+    } 
+    
+    static void ensure_stats_table(sqlite3 *db)
+    {
+        const char *sql_create =
+            "CREATE TABLE IF NOT EXISTS PLAYERINFO("
+            "NAME TEXT PRIMARY KEY,"
+            "FRAGS INTEGER NOT NULL,"
+            "DEATHS INTEGER NOT NULL,"
+            "FLAGS INTEGER NOT NULL,"
+            "KD REAL NOT NULL);";
+        sqlite3_exec(db, sql_create, nullptr, nullptr, nullptr);
     }
+    void loadstats(clientinfo *ci)
+    {
+        if(!ci) return;
+    
+        char key[64];
+        make_name_key_utf8(ci->name, key, sizeof(key));
+    
+        sqlite3 *db = nullptr;
+        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
+        {
+            if(db) sqlite3_close(db);
+            return;
+        }
+    
+        ensure_stats_table(db);
+    
+        sqlite3_stmt *stmt = nullptr;
+        const char *sql = "SELECT FRAGS, DEATHS, FLAGS FROM PLAYERINFO WHERE NAME=?;";
+    
+        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+    
+            if(sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                ci->db_frags  = sqlite3_column_int(stmt, 0);
+                ci->db_deaths = sqlite3_column_int(stmt, 1);
+                ci->db_flags  = sqlite3_column_int(stmt, 2);
+            }
+            else
+            {
+                ci->db_frags = ci->db_deaths = ci->db_flags = 0;
+            }
+        }
+    
+        if(stmt) sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    
+        ci->stats_loaded = true;
+    }
+    
+   void sendplayerstats(clientinfo *ci)
+    {
+        if(!ci) return;
+        if(!ci->name || !ci->name[0]) return;
+
+        char key[64];
+        make_name_key_utf8(ci->name, key, sizeof(key));
+    
+        sqlite3 *db = nullptr;
+        sqlite3_stmt *stmt = nullptr;
+    
+        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
+        {
+            if(db) sqlite3_close(db);
+            return;
+        }
+    
+        ensure_stats_table(db);
+    
+        const char *sql = "SELECT FRAGS, DEATHS, FLAGS, KD FROM PLAYERINFO WHERE NAME=?;";
+        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        {
+            sqlite3_close(db);
+            return;
+        }
+    
+        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+    
+        if(sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            int frags  = sqlite3_column_int(stmt, 0);
+            int deaths = sqlite3_column_int(stmt, 1);
+            int flags  = sqlite3_column_int(stmt, 2);
+            float kd   = (float)sqlite3_column_double(stmt, 3);
+    
+            defformatstring(msg)(
+                "Lifetime stats for \f0%s\f7 — Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
+                ci->name, frags, deaths, flags, kd
+            );
+            sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
+        }
+        else
+        {
+            defformatstring(msg)("Welcome, %s! No stats found yet — go make your mark!", ci->name);
+            sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
+        }
+    
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    }
+    
     void sendinitclient(clientinfo *ci)
     {
         packetbuf p(MAXTRANS, ENET_PACKET_FLAG_RELIABLE);
@@ -3369,93 +3472,70 @@ best.add(clients[i]); \
         if(ci->isSpecLocked) forcespectator(ci);
         if(ci->votedmapsucks) ci->votedmapsucks = true;
         if(!m_mp(gamemode)) return DISC_LOCAL;
+        ci->stats_saved_this_session = false;
+		ci->stats_loaded = false;
+		loadstats(ci);
         sendservinfo(ci);
         return DISC_NONE;
     }
     
     void savestats(clientinfo *ci)
     {
-        sqlite3 *db;
-        char *zErrMsg = 0;
-        int rc;
+        if(!ci) return;  
+        if(!ci->name || !ci->name[0]) return;  
+        if(ci->stats_saved_this_session) return;
+		ci->stats_saved_this_session = true;
     
-        // Open database
-        rc = sqlite3_open("playerinfo.db", &db);
-        if (rc) {
-            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        if(!ci->stats_loaded) loadstats(ci);
+    
+        char key[64];
+        make_name_key_utf8(ci->name, key, sizeof(key));
+    
+        int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
+        int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
+        int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
+    
+        int total_frags  = ci->db_frags  + s_frags;
+        int total_deaths = ci->db_deaths + s_deaths;
+        int total_flags  = ci->db_flags  + s_flags;
+    
+        double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
+    
+        sqlite3 *db = nullptr;
+        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
+        {
+            if(db) sqlite3_close(db);
             return;
         }
     
-        // Create table if not exists (without CN)
-        const char *sql_create = 
-            "CREATE TABLE IF NOT EXISTS PLAYERINFO("
-            "NAME TEXT PRIMARY KEY,"
-            "FRAGS INT NOT NULL,"
-            "DEATHS INT NOT NULL,"
-            "FLAGS INT NOT NULL,"
-            "KD REAL NOT NULL);";
-        rc = sqlite3_exec(db, sql_create, NULL, 0, &zErrMsg);
-        if (rc != SQLITE_OK) {
-            fprintf(stderr, "SQL ERROR (create): %s\n", zErrMsg);
-            sqlite3_free(zErrMsg);
+        ensure_stats_table(db);
+    
+        const char *sql =
+            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(NAME) DO UPDATE SET "
+            "FRAGS=excluded.FRAGS, "
+            "DEATHS=excluded.DEATHS, "
+            "FLAGS=excluded.FLAGS, "
+            "KD=excluded.KD;";
+    
+        sqlite3_stmt *stmt = nullptr;
+        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        {
+            fprintf(stderr, "SQL ERROR (prepare): %s\n", sqlite3_errmsg(db));
             sqlite3_close(db);
             return;
         }
     
-        const char *p_name = ci->name;
-        int p_frags = ci->state.frags;
-        int p_deaths = ci->state.deaths;
-        int p_flags = ci->state.flags;
+        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, total_frags);
+        sqlite3_bind_int(stmt, 3, total_deaths);
+        sqlite3_bind_int(stmt, 4, total_flags);
+        sqlite3_bind_double(stmt, 5, kd);
     
-        // Check if player exists
-        sqlite3_stmt *stmt;
-        const char *sql_select = "SELECT FRAGS, DEATHS, FLAGS FROM PLAYERINFO WHERE NAME = ?;";
-        rc = sqlite3_prepare_v2(db, sql_select, -1, &stmt, NULL);
-        sqlite3_bind_text(stmt, 1, p_name, -1, SQLITE_STATIC);
-    
-        int exists = 0;
-        int total_frags = p_frags;
-        int total_deaths = p_deaths;
-        int total_flags = p_flags;
-    
-        if ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-            exists = 1;
-            total_frags += sqlite3_column_int(stmt, 0);
-            total_deaths += sqlite3_column_int(stmt, 1);
-            total_flags += sqlite3_column_int(stmt, 2);
-        }
-        sqlite3_finalize(stmt);
-    
-        float kd_ratio = (total_deaths > 0) ? (float)total_frags / total_deaths : (float)total_frags;
-    
-        if (!exists) {
-            // Insert new player
-            const char *sql_insert = 
-                "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) VALUES (?, ?, ?, ?, ?);";
-            sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
-            sqlite3_bind_text(stmt, 1, p_name, -1, SQLITE_STATIC);
-            sqlite3_bind_int(stmt, 2, total_frags);
-            sqlite3_bind_int(stmt, 3, total_deaths);
-            sqlite3_bind_int(stmt, 4, total_flags);
-            sqlite3_bind_double(stmt, 5, kd_ratio);
-        } else {
-            // Update existing player
-            const char *sql_update = 
-                "UPDATE PLAYERINFO SET FRAGS = ?, DEATHS = ?, FLAGS = ?, KD = ? WHERE NAME = ?;";
-            sqlite3_prepare_v2(db, sql_update, -1, &stmt, NULL);
-            sqlite3_bind_int(stmt, 1, total_frags);
-            sqlite3_bind_int(stmt, 2, total_deaths);
-            sqlite3_bind_int(stmt, 3, total_flags);
-            sqlite3_bind_double(stmt, 4, kd_ratio);
-            sqlite3_bind_text(stmt, 5, p_name, -1, SQLITE_STATIC);
-        }
-    
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-            fprintf(stderr, "SQL ERROR (insert/update): %s\n", sqlite3_errmsg(db));
-        } else {
-            printf("Stats saved for player: %s\n", p_name);
-        }
+        int rc = sqlite3_step(stmt);
+        if(rc != SQLITE_DONE)
+            fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
     
         sqlite3_finalize(stmt);
         sqlite3_close(db);
@@ -4220,6 +4300,8 @@ best.add(clients[i]); \
                 filtertext(ci->name, text, false, false, MAXNAMELEN);
                 if(!ci->name[0]) copystring(ci->name, "unnamed");
                 QUEUE_STR(ci->name);
+                ci->stats_loaded = false; 
+                loadstats(ci);
                 out(ECHO_CONSOLE, "%s changed their name", ci->name);
                 break;
             }
