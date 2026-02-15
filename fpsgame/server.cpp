@@ -2929,10 +2929,77 @@ best.add(clients[i]); \
         if(!hasmap(ci)) rotatemap(true);
         //should checkmaps
     }
+		
+    void savestats(clientinfo *ci)
+    {
+        if(!ci) return;  
+        if(!ci->name || !ci->name[0]) return;  
+        if(ci->stats_saved_this_session) return;
+		ci->stats_saved_this_session = true;
+    
+        if(!ci->stats_loaded) loadstats(ci);
+    
+        char key[64];
+        make_name_key_utf8(ci->name, key, sizeof(key));
+    
+        int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
+        int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
+        int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
+    
+        int total_frags  = ci->db_frags  + s_frags;
+        int total_deaths = ci->db_deaths + s_deaths;
+        int total_flags  = ci->db_flags  + s_flags;
+    
+        double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
+    
+        sqlite3 *db = nullptr;
+        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
+        {
+            if(db) sqlite3_close(db);
+            return;
+        }
+    
+        ensure_stats_table(db);
+    
+        const char *sql =
+            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(NAME) DO UPDATE SET "
+            "FRAGS=excluded.FRAGS, "
+            "DEATHS=excluded.DEATHS, "
+            "FLAGS=excluded.FLAGS, "
+            "KD=excluded.KD;";
+    
+        sqlite3_stmt *stmt = nullptr;
+        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        {
+            fprintf(stderr, "SQL ERROR (prepare): %s\n", sqlite3_errmsg(db));
+            sqlite3_close(db);
+            return;
+        }
+    
+        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, total_frags);
+        sqlite3_bind_int(stmt, 3, total_deaths);
+        sqlite3_bind_int(stmt, 4, total_flags);
+        sqlite3_bind_double(stmt, 5, kd);
+    
+        int rc = sqlite3_step(stmt);
+        if(rc != SQLITE_DONE)
+            fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
+    
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    }
     
     void startintermission() {
         gamelimit = min(gamelimit, gamemillis);
         checkintermission(true);
+		loopv(clients)
+		{
+    		clientinfo *ci = clients[i];
+    		if(ci) savestats(ci);
+		}
         out(ECHO_CONSOLE, "Intermission started");
     }
     
@@ -3478,69 +3545,7 @@ best.add(clients[i]); \
         sendservinfo(ci);
         return DISC_NONE;
     }
-    
-    void savestats(clientinfo *ci)
-    {
-        if(!ci) return;  
-        if(!ci->name || !ci->name[0]) return;  
-        if(ci->stats_saved_this_session) return;
-		ci->stats_saved_this_session = true;
-    
-        if(!ci->stats_loaded) loadstats(ci);
-    
-        char key[64];
-        make_name_key_utf8(ci->name, key, sizeof(key));
-    
-        int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
-        int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
-        int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
-    
-        int total_frags  = ci->db_frags  + s_frags;
-        int total_deaths = ci->db_deaths + s_deaths;
-        int total_flags  = ci->db_flags  + s_flags;
-    
-        double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
-    
-        sqlite3 *db = nullptr;
-        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
-        {
-            if(db) sqlite3_close(db);
-            return;
-        }
-    
-        ensure_stats_table(db);
-    
-        const char *sql =
-            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
-            "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(NAME) DO UPDATE SET "
-            "FRAGS=excluded.FRAGS, "
-            "DEATHS=excluded.DEATHS, "
-            "FLAGS=excluded.FLAGS, "
-            "KD=excluded.KD;";
-    
-        sqlite3_stmt *stmt = nullptr;
-        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            fprintf(stderr, "SQL ERROR (prepare): %s\n", sqlite3_errmsg(db));
-            sqlite3_close(db);
-            return;
-        }
-    
-        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 2, total_frags);
-        sqlite3_bind_int(stmt, 3, total_deaths);
-        sqlite3_bind_int(stmt, 4, total_flags);
-        sqlite3_bind_double(stmt, 5, kd);
-    
-        int rc = sqlite3_step(stmt);
-        if(rc != SQLITE_DONE)
-            fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
-    
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-    }
-    
+
     void clientdisconnect(int n)
        {
            clientinfo *ci = getinfo(n);
