@@ -2434,6 +2434,7 @@ namespace server {
         loopv(clients)
         {
             clientinfo *ci = clients[i];
+			ci->stats_saved_this_session = false; //qserv
             ci->mapchange();
             ci->state.lasttimeplayed = lastmillis;
             if(m_mp(gamemode) && ci->state.state!=CS_SPECTATOR) sendspawn(ci);
@@ -2985,6 +2986,14 @@ best.add(clients[i]); \
         sqlite3_bind_double(stmt, 5, kd);
     
         int rc = sqlite3_step(stmt);
+
+		if(rc == SQLITE_DONE)
+		{
+    		// advance baseline so next map adds onto lifetime correctly
+    		ci->db_frags  = total_frags;
+    		ci->db_deaths = total_deaths;
+    		ci->db_flags  = total_flags;
+		}
         if(rc != SQLITE_DONE)
             fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
     
