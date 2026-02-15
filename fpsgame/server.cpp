@@ -2062,7 +2062,7 @@ namespace server {
             float kd   = (float)sqlite3_column_double(stmt, 3);
     
             defformatstring(msg)(
-                "Lifetime stats for \f0%s\f7 — Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
+                "Lifetime stats for \f0%s\f7: Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
                 ci->name, frags, deaths, flags, kd
             );
             sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
