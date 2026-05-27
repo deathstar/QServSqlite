@@ -49,6 +49,10 @@ CONFIGURATION
 TROUBLESHOOTING
 -------------------------
 
+CMake Error at enet/CMakeLists.txt:1 (cmake_minimum_required):
+Compatibility with CMake < 3.5 has been removed from CMake.
+run the command: cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
 Can't see player city/state/country msg: try using geoIP geolocation instead of HTTP. To do this, change "usehttpgeolocation 1" to "usehttpgeolocation 0" in config/server-init.cfg. Also, make sure the file permissions are set to allow QServ access to the config folder. You can just use "chmod -R 777 qserv2020" from the command line. 
 
 flagruns not storing: You can just use "chmod -R 777 qserv2020" from the command line to give QServ access to its files.
