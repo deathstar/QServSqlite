@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 2.7)
-set(CMAKE_CXX_STANDARD 14)
+cmake_minimum_required(VERSION 3.0)
 
-project(qserv)
+project(qserv LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(APPLE)
     if(NOT CMAKE_OSX_ARCHITECTURES)
@@ -10,76 +12,74 @@ if(APPLE)
             OUTPUT_VARIABLE HOST_ARCH
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
+
         if(HOST_ARCH STREQUAL "x86_64")
-            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "" FORCE)
         elseif(HOST_ARCH STREQUAL "arm64")
-            set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+            set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "" FORCE)
         else()
             message(WARNING "Unknown macOS architecture '${HOST_ARCH}', defaulting to x86_64")
-            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "Build architectures for Mac OS X" FORCE)
+            set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "" FORCE)
         endif()
     endif()
 endif()
 
-subdirs(enet GeoIP)
+add_subdirectory(enet)
+add_subdirectory(GeoIP)
+
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
+
 set(qserv_srcs
-	engine/server.cpp
-	engine/command.cpp
-	fpsgame/server.cpp
-	mod/QServ.cpp
-	mod/QCom.cpp
-	shared/tools.cpp
-	shared/stream.cpp
-	shared/crypto.cpp
-	ircbot/ircbot.cpp
-	)
+    engine/server.cpp
+    engine/command.cpp
+    fpsgame/server.cpp
+    mod/QServ.cpp
+    mod/QCom.cpp
+    shared/tools.cpp
+    shared/stream.cpp
+    shared/crypto.cpp
+    ircbot/ircbot.cpp
+)
 
-set(qserv_LIBS
-	enet
-	GeoIP
-	sqlite3
-	${ZLIB_LIBRARIES}
-	${CMAKE_THREAD_LIBS_INIT})
+add_executable(qserv ${qserv_srcs})
 
+target_include_directories(qserv PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/engine
+    ${CMAKE_SOURCE_DIR}/fpsgame
+    ${CMAKE_SOURCE_DIR}/GeoIP/libGeoIP
+    ${CMAKE_SOURCE_DIR}/shared
+    ${CMAKE_SOURCE_DIR}/tools
+    ${CMAKE_SOURCE_DIR}/QServ
+    ${CMAKE_SOURCE_DIR}/enet/include
+    ${ZLIB_INCLUDE_DIRS}
+)
 
-IF(WIN32)
-set(qserv_LIBS ${qserv_LIBS} GeoIP)
-ENDIF(WIN32)
+target_compile_definitions(qserv PRIVATE STANDALONE)
 
 include(CheckFunctionExists)
 include(CheckSymbolExists)
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
-set(CMAKE_CXX_FLAGS "-rdynamic")
-ENDIF(CMAKE_COMPILER_IS_GNUCXX)
-
-check_function_exists(gethostbyaddr_r, HAS_GETHOSTBYADDR_R)
-check_function_exists(gethostbyname_r, HAS_GETHOSTBYNAME_R)
-check_function_exists(poll, HAS_POLL)
-check_function_exists(fcntl, HAS_FCNTL)
-check_function_exists(inet_pton, HAS_INET_PTON)
-check_function_exists(inet_ntop, HAS_INET_NTOP)
+check_function_exists(gethostbyaddr_r HAS_GETHOSTBYADDR_R)
+check_function_exists(gethostbyname_r HAS_GETHOSTBYNAME_R)
+check_function_exists(poll HAS_POLL)
+check_function_exists(fcntl HAS_FCNTL)
+check_function_exists(inet_pton HAS_INET_PTON)
+check_function_exists(inet_ntop HAS_INET_NTOP)
 
 check_symbol_exists("struct msghdr.msg_flags" "sys/socket.h" HAS_MSGHDR_FLAGS)
 check_symbol_exists("socklen_t" "sys/types.h;sys/socket.h" HAS_SOCKLEN_T)
 
-add_definitions(-DSTANDALONE)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(qserv PRIVATE -rdynamic)
+endif()
 
-include_directories(${CMAKE_SOURCE_DIR}/src/engine
-	${CMAKE_SOURCE_DIR}/fpsgame
-	${CMAKE_SOURCE_DIR}/GeoIP/libGeoIP
-	${CMAKE_SOURCE_DIR}/shared
-	${CMAKE_SOURCE_DIR}/tools
-	${CMAKE_SOURCE_DIR}/QServ
-	${CMAKE_SOURCE_DIR}/enet/include
-	${ZLIB_INCLUDE_PATH})
-
-add_executable(qserv
-	${qserv_srcs})
-
-target_link_libraries(qserv ${qserv_LIBS})
+target_link_libraries(qserv PRIVATE
+    enet
+    GeoIP
+    sqlite3
+    ZLIB::ZLIB
+    Threads::Threads
+)
 
 install(TARGETS qserv DESTINATION bin)
-
