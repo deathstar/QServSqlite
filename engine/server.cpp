@@ -1139,6 +1139,7 @@ bool setuplistenserver(bool dedicated)
     pongsock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
     if(pongsock != ENET_SOCKET_NULL && enet_socket_bind(pongsock, &address) < 0)
     {
+		printf("[INFO SOCKET] bind failed: errno=%d\n", errno);
         enet_socket_destroy(pongsock);
         pongsock = ENET_SOCKET_NULL;
     }
@@ -1148,6 +1149,7 @@ bool setuplistenserver(bool dedicated)
     lansock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
     if(lansock != ENET_SOCKET_NULL && (enet_socket_set_option(lansock, ENET_SOCKOPT_REUSEADDR, 1) < 0 || enet_socket_bind(lansock, &address) < 0))
     {
+		printf("[LAN SOCKET] reuseaddr and or bind failed: errno=%d\n", errno);
         enet_socket_destroy(lansock);
         lansock = ENET_SOCKET_NULL;
     }
