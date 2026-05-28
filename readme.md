@@ -49,6 +49,10 @@ CONFIGURATION
 TROUBLESHOOTING
 -------------------------
 
+WARNING: could not create LAN server info socket or server error: could not create server info socket
+If you're hosting on Mac OSX, you will need to disable your built in firewall, and or restart your computer to fix socket binding.
+check and look up error number in "[LAN SOCKET] reuseaddr or bind failed errno=48" message for more specific information.
+
 CMake Error at enet/CMakeLists.txt:1 (cmake_minimum_required):
 Compatibility with CMake < 3.5 has been removed from CMake.
 run the command: cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5
