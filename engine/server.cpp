@@ -1208,41 +1208,55 @@ void *irc_thread(void *t) {
 }
 
 int main(int argc, char **argv) {
-    srand (time(NULL));
+    srand(time(NULL));
+
     qs.initCommands(server::initCmds);
     setlogfile(NULL);
-    if(enet_initialize()<0) fatal("[FATAL ERROR]: Unable to initialise network module");
+
+    if (enet_initialize() < 0)
+        fatal("[FATAL ERROR]: Unable to initialise network module");
+
     atexit(enet_deinitialize);
     enet_time_set(0);
-    for(int i = 1; i<argc; i++) if(argv[i][0]!='-' || !serveroption(argv[i])) gameargs.add(argv[i]);
-    
+
+    for (int i = 1; i < argc; i++)
+        if (argv[i][0] != '-' || !serveroption(argv[i]))
+            gameargs.add(argv[i]);
+
     execfile("./config/server-init.cfg", false);
     game::parseoptions(gameargs);
-    
-    if(!serverport) serverport = 28785;
+
+    if (!serverport)
+        serverport = 28785;
+
     printf("[QServ] Server starting on port %d\n", serverport);
-    
-    //main server init
+
     initserver(true, true);
-    
-    pthread_t thread[2];
-    int c; long t;
-    pthread_attr_t attr;
-    void *status;
-    
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-       
-    #ifdef _WIN32
-        c = pthread_create(&thread[0], &attr, main_thread_s, NULL);
-    #else
-        c = pthread_create(&thread[0], &attr, main_thread, NULL);
-    #endif
-    
-    c = pthread_create(&thread[1], &attr, irc_thread, NULL);
-    pthread_detach(thread[1]);
-    pthread_attr_destroy(&attr);
-	pthread_join(thread[0], &status);
+
+    pthread_t main_thread_id;
+    pthread_t irc_thread_id;
+
+    int c;
+
+#ifdef _WIN32
+    c = pthread_create(&main_thread_id, NULL, main_thread_s, NULL);
+#else
+    c = pthread_create(&main_thread_id, NULL, main_thread, NULL);
+#endif
+
+    if (c)
+        fatal("[FATAL ERROR]: Failed to create main server thread");
+
+    c = pthread_create(&irc_thread_id, NULL, irc_thread, NULL);
+    if (c)
+        fatal("[FATAL ERROR]: Failed to create IRC thread");
+
+    // IRC runs independently; server must not depend on it
+    pthread_detach(irc_thread_id);
+
+    // main server thread controls lifetime
+    pthread_join(main_thread_id, NULL);
+
     server::serverclose();
     return EXIT_SUCCESS;
 }
