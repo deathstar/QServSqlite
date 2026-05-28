@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 4.0)
 project(GeoIP)
 
 set(geoip_srcs
