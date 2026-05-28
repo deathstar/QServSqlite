@@ -53,6 +53,17 @@ class ircBot
 
 extern ircBot irc;
 
+struct IRCCommand
+{
+    char command[512];
+};
+
+extern vector<IRCCommand> ircCommandQueue;
+
+void queueIRCCommand(const char *cmd);
+
+void processIRCCommands();
+
 extern bool isloggedin(bool echo = 1);
 
 #endif ///__IRCBOT_INCLUDED
