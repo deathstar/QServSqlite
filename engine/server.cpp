@@ -695,7 +695,7 @@ void checkserversockets()        // reply all server info requests
 VARF(maxclients, 0, DEFAULTCLIENTS, MAXCLIENTS, { if(!maxclients) maxclients = DEFAULTCLIENTS; });
 VAR(serveruprate, 0, 0, INT_MAX);
 SVAR(serverip, "");
-VARF(serverport, 0, server::serverport(), 0xFFFF, { if(!serverport) serverport = server::serverport(); });
+VARF(serverport, 0, 0, 0xFFFF, {});
 
 int curtime = 0, lastmillis = 0, elapsedtime = 0, totalmillis = 0;
 
@@ -1118,7 +1118,7 @@ void rundedicatedserver()
 
 bool servererror(bool dedicated, const char *desc)
 {
-    fatal("%s", desc); //<- silenced warning, old: fatal(desc);
+    fatal("%s", desc); 
     return false;
 }
 
@@ -1151,7 +1151,7 @@ bool setuplistenserver(bool dedicated)
         enet_socket_destroy(lansock);
         lansock = ENET_SOCKET_NULL;
     }
-    if(lansock == ENET_SOCKET_NULL) conoutf(CON_WARN, "WARNING: could not create LAN server info socket");
+    if(lansock == ENET_SOCKET_NULL) conoutf(CON_WARN, "WARNING: could not create LAN server info socket (only affects localhost visibility, common on Mac OSX)");
     else enet_socket_set_option(lansock, ENET_SOCKOPT_NONBLOCK, 1);
     return true;
 }
@@ -1164,8 +1164,7 @@ void initserver(bool listen, bool dedicated)
                setupwindow("QServ", path);
         #endif
     }
-    
-    execfile("./config/server-init.cfg", false);
+
     
     if(!qs.initgeoip("./GeoIP/GeoIP.dat")) logoutf("[FATAL ERROR] Failed to load GeoIP database from GeoIP.dat file");
     if(!qs.initcitygeoip("./GeoIP/GeoLiteCity.dat")) logoutf("[FATAL ERROR] Failed to load GeoLite database from GeoLiteCity.dat file");
@@ -1216,12 +1215,16 @@ int main(int argc, char **argv) {
     atexit(enet_deinitialize);
     enet_time_set(0);
     for(int i = 1; i<argc; i++) if(argv[i][0]!='-' || !serveroption(argv[i])) gameargs.add(argv[i]);
+    
+    execfile("./config/server-init.cfg", false);
     game::parseoptions(gameargs);
+    
+    if(!serverport) serverport = 28785;
+    printf("[QServ] Server starting on port %d\n", serverport);
     
     //main server init
     initserver(true, true);
     
-    //pthread threading for IRC bot
     pthread_t thread[2];
     int c; long t;
     pthread_attr_t attr;
