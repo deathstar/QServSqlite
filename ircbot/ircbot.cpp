@@ -13,6 +13,49 @@
 #include "ircbot.h"
 #include "../mod/QServ.h"
 
+#include <pthread.h>
+
+vector<IRCCommand> ircCommandQueue;
+
+pthread_mutex_t ircCommandMutex = PTHREAD_MUTEX_INITIALIZER;
+
+void queueIRCCommand(const char *cmd)
+{
+    if(!cmd || !cmd[0]) return;
+
+    IRCCommand q;
+
+    copystring(q.command, cmd);
+
+    pthread_mutex_lock(&ircCommandMutex);
+
+    ircCommandQueue.add(q);
+
+    pthread_mutex_unlock(&ircCommandMutex);
+}
+
+void processIRCCommands()
+{
+    pthread_mutex_lock(&ircCommandMutex);
+
+    loopv(ircCommandQueue)
+    {
+        IRCCommand &q = ircCommandQueue[i];
+
+        if(strlen(q.command) > 0 && strlen(q.command) < 400)
+        {
+            conoutf("[IRC CMD] %s", q.command);
+
+            execute(q.command);
+        }
+    }
+
+    ircCommandQueue.setsize(0);
+
+    pthread_mutex_unlock(&ircCommandMutex);
+}
+
+
 SVAR(irchost, "irc.gamesurge.net");
 VAR(ircport, 0, 6667, 65535);
 VAR(ircignore, 0, 0, 1);
@@ -256,7 +299,7 @@ bool ircBot::IsCommand(char *buff)
         {
             conoutf("%s", c);
 
-            execute(c);
+            queueIRCCommand(c);;
         }
 
         return true;
