@@ -1084,8 +1084,6 @@ void *main_thread(void*t) {
     for(;;) {
 		serverslice(true, 5);
 		processIRCCommands();
-		
-		qsleep(1); 
     }
     pthread_exit((void*)t);
 }
