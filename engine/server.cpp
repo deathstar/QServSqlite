@@ -1082,8 +1082,10 @@ pthread_t thread2;
 
 void *main_thread(void*t) {
     for(;;) {
-        serverslice(true, 5);
-        
+		serverslice(true, 5);
+		processIRCCommands();
+		
+		qsleep(1); 
     }
     pthread_exit((void*)t);
 }
@@ -1228,19 +1230,16 @@ int main(int argc, char **argv) {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
        
-      #ifdef _WIN32
-        c = pthread_create(&thread[0], &attr, main_thread_s, (void*)&t);
+    #ifdef _WIN32
+        c = pthread_create(&thread[0], &attr, main_thread_s, NULL);
     #else
-        c = pthread_create(&thread[0], &attr, main_thread, (void*)&t);
+        c = pthread_create(&thread[0], &attr, main_thread, NULL);
     #endif
     
-    c = pthread_create(&thread[1], &attr, irc_thread, (void*)&t);
-    
+    c = pthread_create(&thread[1], &attr, irc_thread, NULL);
+    pthread_detach(thread[1]);
     pthread_attr_destroy(&attr);
-    for(int i = 0; i < 2; i++) {
-        c = pthread_join(thread[i], &status);
-        qsleep(5);
-    }
+	pthread_join(thread[0], &status);
     server::serverclose();
     return EXIT_SUCCESS;
 }
