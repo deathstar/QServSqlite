@@ -54,6 +54,7 @@ namespace server {
             QServ(bool, int, char);
             ~QServ();
             
+            pthread_mutex_t qserv_mutex;
             int instacoop_gamelimit;
 
             bool initgeoip(const char*);
