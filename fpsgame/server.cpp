@@ -4286,8 +4286,14 @@ best.add(clients[i]); \
                 time_t ltime;
                 char buf[50];
                 ltime=time(&ltime);
-                localtime_r(&ltime, &newtime); //localtime__r and asctime_r: threadsafe
-                logoutf("%s %s: %s", asctime_r(&newtime, buf), colorname(cq),text);
+                #ifdef _WIN32
+					// Windows fallback using built-in engine/standard equivalents
+					struct tm *winTime = localtime(&ltime);
+					logoutf("%s %s: %s", asctime(winTime), colorname(cq), text);
+				#else
+					localtime_r(&ltime, &newtime); 
+					logoutf("%s %s: %s", asctime_r(&newtime, buf), colorname(cq), text);
+				#endif
                 out(ECHO_IRC, "%s: %s", colorname(cq),text);
                 break;
             }
