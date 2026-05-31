@@ -1082,19 +1082,19 @@ void logoutfv(const char *fmt, va_list args)
 #endif
 
 pthread_t thread2;
-
+//unix thread
 void *main_thread(void*t) {
     for(;;) {
-		serverslice(true, 5);
-		processIRCCommands();
+        serverslice(true, 5);
+        processIRCCommands(); 
     }
     pthread_exit((void*)t);
 }
-
+//windows thread
 void *main_thread_s(void *t) {
     for(;;)
     {
-#ifdef WIN32
+#ifdef _WIN32 
         MSG msg;
         while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
@@ -1104,7 +1104,7 @@ void *main_thread_s(void *t) {
         }
 #endif
         serverslice(true, 5);
-        
+        processIRCCommands(); 
     }
     pthread_exit((void*)t);
 }
