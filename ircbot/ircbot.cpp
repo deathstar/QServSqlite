@@ -36,25 +36,29 @@ void queueIRCCommand(const char *cmd)
 
 void processIRCCommands()
 {
+    vector<IRCCommand> localQueue;
+    // 2. Lock just long enough to copy the data out
     pthread_mutex_lock(&ircCommandMutex);
-
+    
     loopv(ircCommandQueue)
     {
-        IRCCommand &q = ircCommandQueue[i];
+        localQueue.add(ircCommandQueue[i]);
+    }
+    ircCommandQueue.setsize(0); // Clear the shared queue immediately
+    
+    pthread_mutex_unlock(&ircCommandMutex); 
 
+    // 3. Now execute the commands safely without holding the mutex lock
+    loopv(localQueue)
+    {
+        IRCCommand &q = localQueue[i];
         if(strlen(q.command) > 0 && strlen(q.command) < 400)
         {
             conoutf("[IRC CMD] %s", q.command);
-
-            execute(q.command);
+            execute(q.command); 
         }
     }
-
-    ircCommandQueue.setsize(0);
-
-    pthread_mutex_unlock(&ircCommandMutex);
 }
-
 
 SVAR(irchost, "irc.gamesurge.net");
 VAR(ircport, 0, 6667, 65535);
