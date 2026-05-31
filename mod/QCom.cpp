@@ -1325,7 +1325,7 @@ namespace server {
                                 location = qs.cgip(ip).c_str(); //qs.congeoip(ip); <-- just country
 
                                 if(!location) {
-                                    sprintf(lmsg[1], "%s", "Unknown Location");
+                                    snprintf(lmsg[1], sizeof(lmsg[1]), "%s", "Unknown Location");
                                 }
                             }
                             string buf;
@@ -1346,9 +1346,9 @@ namespace server {
                             
                             send_connected_time(ci, CMD_SENDER);
                             
-                            if(location) sprintf(lmsg[1], "%s", location);
-                            (CMD_SCI.privilege == PRIV_ADMIN) ? sprintf(lmsg[0], "%s (%s)", lmsg[1], ip) :
-                            sprintf(lmsg[0], "%s", lmsg[1]);
+                            if(location) snprintf(lmsg[1], sizeof(lmsg[1]), "%s", location);
+                            (CMD_SCI.privilege == PRIV_ADMIN) ? snprintf(lmsg[0], sizeof(lmsg[0]), "%s (%s)", lmsg[1], ip) : 
+                            snprintf(lmsg[0], sizeof(lmsg[0]), "%s", lmsg[1]);
                             
                             if(qs.enable_HTTP_geo) {
                                 try
