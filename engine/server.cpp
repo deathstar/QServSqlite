@@ -560,7 +560,7 @@ void processmasterinput()
         while(args < end && iscubespace(*args)) args++;
 
         if(matchstring(input, cmdlen, "failreg"))
-            conoutf(CON_ERROR, "master server registration failed: %s", args);
+            conoutf(CON_ERROR, "master server registration failed: %s \nForward port %d and %d to this computer's internal IP using UDP in your router settings page.", args, server::serverport(), server::serverport()+1);
         else if(matchstring(input, cmdlen, "succreg"))
             conoutf("master server registration succeeded");
         else server::processmasterinput(input, cmdlen, args);
