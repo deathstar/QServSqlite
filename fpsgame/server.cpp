@@ -2029,7 +2029,7 @@ namespace server {
    void sendplayerstats(clientinfo *ci)
     {
         if(!ci) return;
-        if(!ci->name || !ci->name[0]) return;
+        if(!ci->name[0]) return;
 
         char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
@@ -2934,7 +2934,7 @@ best.add(clients[i]); \
     void savestats(clientinfo *ci)
     {
         if(!ci) return;  
-        if(!ci->name || !ci->name[0]) return;  
+        if(!ci->name[0]) return;
         if(ci->stats_saved_this_session) return;
 		ci->stats_saved_this_session = true;
     
