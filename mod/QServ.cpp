@@ -561,7 +561,9 @@ void QServ::getLocation(clientinfo *ci) {
                 std::string s(res.body.begin(), res.body.end());
                 RString(s, "\n", " > ");
                 UTFEncode(s);
-                s.erase(s.length()-2, 2);
+                if (s.length() >= 2) {
+    				s.erase(s.length() - 2, 2);
+				}
 
                 defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
                 out(ECHO_SERV,"%s", msg);
