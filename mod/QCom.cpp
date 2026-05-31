@@ -113,7 +113,7 @@ namespace server {
                 }
                 else if(togglenum==0 && enableautosendmap == false) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Autosendmap is already disabled. Use \f2#autosendmap 1 \f3to enable it.");
                 else if(togglenum==1 && enableautosendmap == true) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Autosendmap is already enabled. Use \f2#autosendmap 0 \f3to disable it.");
-                else if(togglenum==NULL || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
+                else if(!togglenum || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
         } else {
             togglenum = -1;
             usage = true;
@@ -138,7 +138,7 @@ namespace server {
         if(CMD_SA) {
             Limitvariable = atoi(args[1]);
             if(Limitvariable < 1000 || Limitvariable > 9999999) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Enter a game limit between the range of 1000 to 9999999 milliseconds.");
-            else if(Limitvariable != NULL && args[1] != NULL) instacoop_gamelimit = Limitvariable;
+            else if(Limitvariable != 0 && args[1] != NULL) instacoop_gamelimit = Limitvariable;
         }
         else sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
 
@@ -234,7 +234,7 @@ namespace server {
                 }
                 else if(togglenum==0 && server::persist == false) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Persistant teams are already disabled. Use \f2#teampersist 1 \f3to enable them.");
                 else if(togglenum==1 && server::persist == true) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Persistant teams are already enabled. Use \f2#teampersist 0 \f3to disable them.");
-                else if(togglenum==NULL || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
+                else if(!togglenum || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
         } else {
             togglenum = -1;
             usage = true;
@@ -297,7 +297,7 @@ namespace server {
                 }
                 else if(togglenum==0 && mastermask == MM_PUBSERV) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Master is already disabled. Use \f2#allowmaster 1 \f3to enable it.");
                 else if(togglenum==1 && mastermask == MM_PRIVSERV) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Master is already enabled. Use \f2#allowmaster 0 \f3to disable it.");
-                else if(togglenum==NULL || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
+                else if(!togglenum || isalpha(togglenum) || togglenum < 0 || togglenum > 1) usage = true;
         } else {
             togglenum = -1;
             usage = true;
@@ -427,7 +427,7 @@ namespace server {
     QSERV_CALLBACK cw_cmd(p) {
         const char *mapname = args[2];
         char *mn = args[1];
-        if(CMD_SA && args[1] != NULL && args[2] != NULL && *mapname !=NULL && *mn!=NULL) {
+        if(CMD_SA && args[1] != NULL && args[2] != NULL && *mapname !='\0' && *mn!='\0') {
         int gm; // default set to current mode td
         bool valid = false;
         
@@ -469,7 +469,7 @@ namespace server {
     QSERV_CALLBACK duel_cmd(p) {
         const char *mapname = args[2];
         char *mn = args[1];
-        if(CMD_SA && args[1] != NULL && args[2] != NULL && *mapname !=NULL && *mn!=NULL) {
+        if(CMD_SA && args[1] != NULL && args[2] != NULL && *mapname !='\0' && *mn!='\0') {
             int gm; // default set to current mode td
             bool valid = false;
             
@@ -1008,7 +1008,7 @@ namespace server {
                         if(ci->connected) {
                         
                         clientinfo *self = qs.getClient(CMD_SENDER);
-                        if(cn!=CMD_SENDER && cn >= 0 && cn <= 1000 && cn != NULL && ci != NULL && ci->connected && args[1]!=NULL) {
+                        if(cn!=CMD_SENDER && cn >= 0 && cn <= 1000 && cn != 0 && ci != NULL && ci->connected && args[1]!=NULL) {
                         int accuracy = (ci->state.damage*100)/max(ci->state.shotdamage, 1);
                         privilegemsg(PRIV_MASTER,"\f7Something's fishy! A cheater has been reported.");
                          out(ECHO_SERV, "\f0%s \f7accuses \f3%s \f7(CN: \f6%d \f7| Accuracy: \f6%d%%\f7) of cheating.", colorname(self), colorname(ci), ci->clientnum, accuracy);
@@ -1257,7 +1257,7 @@ namespace server {
         int UTCOffset = -1;
         if(CMD_SA) {
             UTCOffset = atoi(args[1]);
-            if(UTCOffset != NULL && args[1] != NULL) {
+            if(UTCOffset != 0 && args[1] != NULL) {
                 #define UTC (0)
                 time_t rawtime;
                 struct tm * ptm;
