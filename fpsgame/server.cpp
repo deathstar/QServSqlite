@@ -3535,26 +3535,35 @@ best.add(clients[i]); \
         return ret;
     }
     
-    int clientconnect(int n, uint ip, char *ipstr)
+	int clientconnect(int n, uint ip, char *ipstr)
     {
-        clientinfo *ci = getinfo(n);
-        ci->ip = ipstr; //QServ ci->ip
-        defformatstring(cm)("IP: %s", ci->ip);
-        if(showclientips) privilegemsg(PRIV_ADMIN, cm);
+    	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
+		if (!ci) return DISC_NONE;
+    	copystring(ci->ip, ipstr);
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
-        ci->sessionid = (rnd(0x1000000)*((totalmillis%10000)+1))&0xFFFFFF;
-        connects.add(ci);
-        if(ci->isSpecLocked) forcespectator(ci);
-        if(ci->votedmapsucks) ci->votedmapsucks = true;
-        if(!m_mp(gamemode)) return DISC_LOCAL;
+        ci->sessionid = (rnd(0x1000000) * ((totalmillis % 10000) + 1)) & 0xFFFFFF;
+   
+        if (showclientips) {
+        	defformatstring(cm)("IP: %s", ci->ip);
+        	privilegemsg(PRIV_ADMIN, cm);
+       	}
+   
+       	connects.add(ci);
+       	if (ci->isSpecLocked) forcespectator(ci);
+        if (ci->votedmapsucks) ci->votedmapsucks = true;
+   
+        if (!m_mp(gamemode)) return DISC_LOCAL;
+   
         ci->stats_saved_this_session = false;
-		ci->stats_loaded = false;
-		loadstats(ci);
+        ci->stats_loaded = false;
+        loadstats(ci);
+   
         sendservinfo(ci);
+       
         return DISC_NONE;
     }
-
+    
     void clientdisconnect(int n)
        {
            clientinfo *ci = getinfo(n);
