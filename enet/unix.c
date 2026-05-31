@@ -317,6 +317,11 @@ enet_socket_set_option (ENetSocket socket, ENetSocketOption option, int value)
         case ENET_SOCKOPT_REUSEADDR:
             result = setsockopt (socket, SOL_SOCKET, SO_REUSEADDR, (char *) & value, sizeof (int));
             break;
+            
+        //additional functionality for LAN socket binding conflicts
+        case ENET_SOCKOPT_REUSEPORT:
+        	result = setsockopt (socket, SOL_SOCKET, SO_REUSEPORT, (char *) & value, sizeof (int));
+        	break;
 
         case ENET_SOCKOPT_RCVBUF:
             result = setsockopt (socket, SOL_SOCKET, SO_RCVBUF, (char *) & value, sizeof (int));
