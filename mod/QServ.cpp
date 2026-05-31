@@ -77,8 +77,8 @@ namespace server {
     
     void QServ::newcommand(const char *name, const char *desc, int priv, void (*callback)(int, char **args, int),
                            int args) {
-        sprintf(m_command[m_lastcommand].name, "%c%s", m_cmdprefix, name);
-        sprintf(m_command[m_lastcommand].desc, "%s", desc);
+        snprintf(m_command[m_lastcommand].name, sizeof(m_command[m_lastcommand].name), "%c%s", m_cmdprefix, name);
+		snprintf(m_command[m_lastcommand].desc, sizeof(m_command[m_lastcommand].desc), "%s", desc);
         
         m_command[m_lastcommand].priv = priv;
         m_command[m_lastcommand].id = m_lastcommand;
@@ -252,7 +252,7 @@ namespace server {
         
         for(int i = 0; i < 4; i++) {
             by[i] = (getclientip(cn) >> i*8) & 0xFF;
-            sprintf(ip, "%d.%d.%d.%d", by[0], by[1], by[2], by[3]);
+            snprintf(ip, sizeof(ip), "%d.%d.%d.%d", by[0], by[1], by[2], by[3]);
         }
         return ip;
     }
@@ -263,7 +263,7 @@ namespace server {
         
         char ftb[1024] = {0};
         
-        sprintf(ftb, "%s", text);
+        snprintf(ftb, sizeof(ftb), "%s", text);
         setFullText(ftb);
         
         if(isCommand(text)) {
@@ -540,8 +540,8 @@ void QServ::getLocation(clientinfo *ci) {
         } else {
             type = 2;
             typeconsole = 2;
-            sprintf(lmsg, "%s %s", types[type], location);
-            sprintf(pmsg, "%s%s", typesconsole[typeconsole], location);
+            snprintf(lmsg, sizeof(lmsg), "%s %s", types[type], location);
+			snprintf(pmsg, sizeof(pmsg), "%s%s", typesconsole[typeconsole], location);
         }
 
         if(!enable_HTTP_geo) {
