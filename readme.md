@@ -25,9 +25,15 @@ REQUIREMENTS FOR COMPILING
  
 **WINDOWS**
 
-- A Windows version of QServ will be available soon
+- Install MSYS2: https://www.msys2.org/
+- Open the MSYS2 MINGW64 Terminal, and run: "pacman -Syu" and "pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git mingw-w64-x86_64-sqlite3"
 
-COMPILATION INSTRUCTIONS
+WINDOWS COMPILATION 
+--------------------------
+- From the MSYS2 MINGW64 Terminal, run: mkdir build; cd build then run: cmake -G "MinGW Makefiles" .. and finally run: cmake --build .
+- The path to the source code and executable is C:\msys64\home\<Your_Windows_Username>
+
+MAC/LINUX COMPILATION INSTRUCTIONS 
 --------------------------
 
 Please make sure you have all of the requirements for compiling (listed above) installed before continuing. 
