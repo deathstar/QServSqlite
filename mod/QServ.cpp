@@ -549,7 +549,7 @@ namespace server {
 	    };
 	
 	    // 4. Memory Initialization: Pre-clear stack arrays to prevent tracking junk characters
-	    char lmsg[255] = {0};
+	    char lmsg[512] = {0};
 	    char pmsg[255] = {0};
 	
 	    // Note: clientip left intact if referenced downstream, but validated pointer usage safely
