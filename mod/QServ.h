@@ -1,9 +1,8 @@
 #ifndef QSERV_H_INCLUDED
 #define QSERV_H_INCLUDED
 
-//detect uppercase letters for bad words (fix filter)
-
 #include "game.h"
+#include <cstdint>
 #include "fpsgame.h"
 #include "../GeoIP/libGeoIP/GeoIP.h"
 #include <time.h>
@@ -17,14 +16,12 @@ const bool olanguagewarn = false;
 const int maxolangwarnings = 5;
 const char commandprefix = '#';
 
-// restrict modes certain modes only for a tournament, not coop etc.
 static char const *qserv_modenames[] = {
 "ffa", "coop", "teamplay", "insta", "instateam", "effic",
     "efficteam", "tac", "tacteam", "capture", "regencapture",
     "ctf", "instactf", "protect", "instaprotect", "hold", "instahold",
     "efficctf", "efficprotect", "effichold", "collect", "instacollect", "efficcollect"
 };
-
 
 static string owords[] = {
 	"fuck", "shit", "cunt", "bitch", "whore", "twat",
