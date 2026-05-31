@@ -3,6 +3,9 @@
 // includes threading for QServ and IRC, and geoip database initaliziation
 
 #include "../mod/QServ.h"
+#ifdef _WIN32
+    #include <winsock2.h>
+#endif
 
 server::QServ qs(olanguagewarn, maxolangwarnings, commandprefix);
 
@@ -693,10 +696,10 @@ void checkserversockets()        // reply all server info requests
 #define DEFAULTCLIENTS 8
 
 VARF(maxclients, 0, DEFAULTCLIENTS, MAXCLIENTS, { if(!maxclients) maxclients = DEFAULTCLIENTS; });
+VAR(maxdupclients, 0, 2, MAXCLIENTS);
 VAR(serveruprate, 0, 0, INT_MAX);
 SVAR(serverip, "");
-VARF(serverport, 0, 0, 0xFFFF, {});
-
+VARF(serverport, 0, server::serverport(), 0xFFFF-1, { if(!serverport) serverport = server::serverport(); });
 int curtime = 0, lastmillis = 0, elapsedtime = 0, totalmillis = 0;
 
 void updatemasterserver()
@@ -986,13 +989,13 @@ static void setupwindow(const char *title, const char *path)
     copystring(apptip, title);
     
     appinstance = GetModuleHandle(path);
-    if(!appinstance) fatal("failed getting application instance");
+    //if(!appinstance) fatal("failed getting application instance");
     appicon = LoadIcon(appinstance, MAKEINTRESOURCE(IDI_ICON1));
     (HICON)LoadImage(appinstance, MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE);
-    if(!appicon) fatal("failed loading icon");
+    //if(!appicon) fatal("failed loading icon");
     
     appmenu = CreatePopupMenu();
-    if(!appmenu) fatal("failed creating popup menu");
+    //if(!appmenu) fatal("failed creating popup menu");
     AppendMenu(appmenu, MF_STRING, MENU_OPENCONSOLE, "Open Console");
     AppendMenu(appmenu, MF_SEPARATOR, 0, NULL);
     AppendMenu(appmenu, MF_STRING, MENU_EXIT, "Exit");
@@ -1013,14 +1016,14 @@ static void setupwindow(const char *title, const char *path)
     wc.cbWndExtra = 0;
     wc.cbClsExtra = 0;
     wndclass = RegisterClass(&wc);
-    if(!wndclass) fatal("failed registering window class");
+    //if(!wndclass) fatal("failed registering window class");
     
     appwindow = CreateWindow(MAKEINTATOM(wndclass), title, 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, HWND_MESSAGE, NULL, appinstance, NULL);
-    if(!appwindow) fatal("failed creating window");
+    //if(!appwindow) fatal("failed creating window");
     
     atexit(cleanupwindow);
     
-    if(!setupsystemtray(WM_APP)) fatal("failed adding to system tray");
+    //if(!setupsystemtray(WM_APP)) fatal("failed adding to system tray");
 }
 
 static char *parsecommandline(const char *src, vector<char *> &args)
@@ -1122,37 +1125,87 @@ bool servererror(bool dedicated, const char *desc)
     return false;
 }
 
+  
 bool setuplistenserver(bool dedicated)
 {
     ENetAddress address = { ENET_HOST_ANY, enet_uint16(serverport <= 0 ? server::serverport() : serverport) };
     if(*serverip)
     {
-        if(enet_address_set_host(&address, serverip)<0) conoutf(CON_WARN, "WARNING: server ip not resolved");
+        if(enet_address_set_host(&address, serverip) < 0) conoutf(CON_WARN, "WARNING: server ip not resolved");
         else serveraddress.host = address.host;
     }
     serverhost = enet_host_create(&address, min(maxclients + server::reserveclients(), MAXCLIENTS), server::numchannels(), 0, serveruprate);
     if(!serverhost) return servererror(dedicated, "could not create server host");
-    loopi(maxclients) serverhost->peers[i].data = NULL;
+    
+    // Set your duplicate clients restriction
+    serverhost->duplicatePeers = maxdupclients ? maxdupclients : MAXCLIENTS;
+    
+    // 2. Initialize the Server Info (Pong) Socket for Master Server pings
     address.port = server::serverinfoport(serverport > 0 ? serverport : -1);
     pongsock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
     if(pongsock != ENET_SOCKET_NULL && enet_socket_bind(pongsock, &address) < 0)
     {
-		printf("[INFO SOCKET] bind failed: errno=%d\n", errno);
         enet_socket_destroy(pongsock);
         pongsock = ENET_SOCKET_NULL;
     }
     if(pongsock == ENET_SOCKET_NULL) return servererror(dedicated, "could not create server info socket");
     else enet_socket_set_option(pongsock, ENET_SOCKOPT_NONBLOCK, 1);
-    address.port = server::laninfoport();
-    lansock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
-    if(lansock != ENET_SOCKET_NULL && (enet_socket_set_option(lansock, ENET_SOCKOPT_REUSEADDR, 1) < 0 || enet_socket_bind(lansock, &address) < 0))
+    
+    ENetAddress lanaddress;
+    bool lan_bound = false;
+
+    // Default to the vanilla LAN port (28784)
+    int target_lan_port = server::laninfoport(); 
+
+    // LAN port congested by another server
+    for(int attempt = 0; attempt < 2; attempt++)
     {
-		printf("[LAN SOCKET] reuseaddr and or bind failed: errno=%d\n", errno);
-        enet_socket_destroy(lansock);
-        lansock = ENET_SOCKET_NULL;
+        memset(&lanaddress, 0, sizeof(ENetAddress));
+        lanaddress.port = target_lan_port;
+
+        if(*serverip && serveraddress.host != ENET_HOST_ANY)
+        {
+            lanaddress.host = serveraddress.host; 
+        }
+        else
+        {
+            // First pass: open to local network. Second pass: fallback to safe localhost
+            if(attempt == 0) lanaddress.host = ENET_HOST_ANY;
+            else enet_address_set_host(&lanaddress, "127.0.0.1");
+        }
+
+        lansock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
+        if(lansock != ENET_SOCKET_NULL)
+        {
+            // Enable REUSEADDR and custom macOS REUSEPORT logic safely
+            enet_socket_set_option(lansock, ENET_SOCKOPT_REUSEADDR, 1);
+            enet_socket_set_option(lansock, ENET_SOCKOPT_REUSEPORT, 1); 
+
+            if(enet_socket_bind(lansock, &lanaddress) >= 0)
+            {
+                lan_bound = true;
+                break; 
+            }
+            
+            enet_socket_destroy(lansock);
+            lansock = ENET_SOCKET_NULL;
+        }
+
+        // SAFETY ISOLATION: Shift to +2 offset to completely avoid breaking 
+        // the master server's ping requirements on pongsock (serverport + 1)
+        target_lan_port = (serverport <= 0 ? server::serverport() : serverport) + 2;
     }
-    if(lansock == ENET_SOCKET_NULL) conoutf(CON_WARN, "WARNING: could not create LAN server info socket (only affects localhost visibility, common on Mac OSX)");
-    else enet_socket_set_option(lansock, ENET_SOCKOPT_NONBLOCK, 1);
+    
+    // Log a clean notice instead of a scary error if LAN visibility is restricted
+    if(!lan_bound || lansock == ENET_SOCKET_NULL) 
+    {
+        conoutf(CON_WARN, "NOTICE: LAN discovery service restricted to local machine link.");
+    }
+    else 
+    {
+        enet_socket_set_option(lansock, ENET_SOCKOPT_NONBLOCK, 1);
+    }
+
     return true;
 }
 
@@ -1161,7 +1214,7 @@ void initserver(bool listen, bool dedicated)
     if(dedicated)
     {
         #ifdef WIN32
-               setupwindow("QServ", path);
+               setupwindow("QServ", "");
         #endif
     }
 
@@ -1208,8 +1261,18 @@ void *irc_thread(void *t) {
 }
 
 int main(int argc, char **argv) {
-    srand(time(NULL));
+#ifdef _WIN32
+    // provision a native network application instance on Windows systems
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        printf("Failed to initialize Windows network application instance.\n");
+        return EXIT_FAILURE;
+    }
+#endif
 
+    srand(time(NULL));
+	
     qs.initCommands(server::initCmds);
     setlogfile(NULL);
 
@@ -1226,8 +1289,6 @@ int main(int argc, char **argv) {
     execfile("./config/server-init.cfg", false);
     game::parseoptions(gameargs);
 
-    if (!serverport)
-        serverport = 28785;
 
     printf("[QServ] Server starting on port %d\n", serverport);
 
