@@ -638,11 +638,11 @@ namespace server {
                                 location = qs.cgip(ip).c_str(); //qs.congeoip(ip); <-- just country
 
                                 if(!location) {
-                                    sprintf(lmsg[1], "%s", "Unknown Location");
+                                    snprintf(lmsg[1], sizeof(lmsg[1]), "%s", "Unknown Location");
                                 }
                             }
-                            if(location) sprintf(lmsg[1], "%s", location);
-                            (CMD_SCI.privilege == PRIV_ADMIN) ? sprintf(lmsg[0], "%s (%s)", lmsg[1], ip) : sprintf(lmsg[0], "%s", lmsg[1]);
+                            if(location) snprintf(lmsg[1], sizeof(lmsg[1]), "%s", location);
+                            (CMD_SCI.privilege == PRIV_ADMIN) ? snprintf(lmsg[0], sizeof(lmsg[0]), "%s (%s)", lmsg[1], ip) : snprintf(lmsg[0], sizeof(lmsg[0]), "%s", lmsg[1]);
                             if(qs.enable_HTTP_geo) {
                                 try
                                 {
@@ -1168,7 +1168,7 @@ namespace server {
             int lastcmd = -1;
             char command[50];
             
-            sprintf(command, "%c%s", commandprefix, args[1]);
+            snprintf(command, sizeof(command), "%c%s", commandprefix, args[1]);
             if(strlen(command) > 0) {
                 for(int i = 0; i < CMD_LAST; i++) {
                     if(!strcmp(CMD_NAME(i), command)) {
@@ -1193,7 +1193,7 @@ namespace server {
             strcpy(commandList, "");
             clientinfo *ci = qs.getClient(CMD_SENDER);
             if(ci->privilege==PRIV_ADMIN) {
-                sprintf(commandList, "%s", "\f2Commands: \f7");
+                snprintf(commandList, sizeof(commandList), "%s", "\f2Commands: \f7");
                 for(int i = 0; i < CMD_LAST; i++) {
                     if(CMD_PRIV(i) == PRIV_ADMIN || CMD_PRIV(i) == PRIV_MASTER || CMD_PRIV(i) == PRIV_NONE) {
                         strcat(commandList, CMD_NAME(i));
@@ -1204,7 +1204,7 @@ namespace server {
                 }
             }
             else if(ci->privilege==PRIV_MASTER) {
-                sprintf(commandList, "%s", "\f2Commands: \f7");
+                snprintf(commandList, sizeof(commandList), "%s", "\f2Commands: \f7");
                 for(int i = 0; i < CMD_LAST; i++) {
                     if(CMD_PRIV(i) == PRIV_MASTER || CMD_PRIV(i) == PRIV_NONE) {
                         strcat(commandList, CMD_NAME(i));
@@ -1215,7 +1215,7 @@ namespace server {
                 }
             }
             else if(ci->privilege==PRIV_NONE) {
-                sprintf(commandList, "%s", "\f2Commands: \f7");
+                snprintf(commandList, sizeof(commandList), "%s", "\f2Commands: \f7");
                 for(int i = 0; i < CMD_LAST; i++) {
                     if(CMD_PRIV(i) == PRIV_NONE) {
                         strcat(commandList, CMD_NAME(i));
@@ -1291,7 +1291,7 @@ namespace server {
 
         for(int i = 0; i < 50; i++) {
             if(strlen(owords[i]) > 0) {
-                sprintf(colors, "\f%d", 3);
+                snprintf(colors, sizeof(colors), "\f%d", 3);
                 strcat(owordList, colors);
                 strcat(owordList, owords[i]);
                 strcat(owordList, "\f2, ");
