@@ -53,8 +53,9 @@ void logoutf(const char *fmt, ...)
 
 static void writelog(FILE *file, const char *fmt, va_list args)
 {
-    static char buf[LOGSTRLEN];
-    static uchar ubuf[512];
+    // Local arrays allocated per-thread on the stack to prevent cross-thread corruption
+    char buf[LOGSTRLEN];
+    uchar ubuf[512];
     vformatstring(buf, fmt, args, sizeof(buf));
     int len = strlen(buf), carry = 0;
     while(carry < len)
@@ -560,7 +561,7 @@ void processmasterinput()
         while(args < end && iscubespace(*args)) args++;
 
         if(matchstring(input, cmdlen, "failreg"))
-            conoutf(CON_ERROR, "master server registration failed: %s \nForward port %d and %d to this computer's internal IP using UDP in your router settings page.", args, server::serverport(), server::serverport()+1);
+            conoutf(CON_ERROR, "master server registration failed: %s \nForward server ports (IE: 28785/28786) to this computer's internal IP using UDP in your router settings page.", args);
         else if(matchstring(input, cmdlen, "succreg"))
             conoutf("master server registration succeeded");
         else server::processmasterinput(input, cmdlen, args);
