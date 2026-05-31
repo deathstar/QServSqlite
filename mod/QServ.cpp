@@ -1,7 +1,12 @@
 #include "QServ.h"
 #include "../GeoIP/libGeoIP/GeoIPCity.h"
 #include "../GeoIP/libGeoIP/GeoIP.h"
-#include <netdb.h>
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+#else
+    #include <netdb.h>
+#endif
 #include "HTTPRequest.hpp"
 #include <../sqlite/sqlite3.h>
 
@@ -409,11 +414,13 @@ namespace server {
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <ifaddrs.h>
+#if !defined(_WIN32)
+    #include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <arpa/inet.h>
+	#include <net/if.h>
+	#include <ifaddrs.h>
+#endif
 #include <errno.h>
 
      bool IsAlphabetical(char c) { //also allows spaces
@@ -448,129 +455,127 @@ namespace server {
         RString(s, "ö", "o"); RString(s, "ü", "u"); RString(s, "ÿ", "y");
     }
     
-    void QServ::getLocation(clientinfo *ci) {
-        
-        //get our localhost ip for comparison exclusion
-        struct ifaddrs *myaddrs, *ifa;
-        void *in_addr;
-        char buf[64];
-        
-        if(getifaddrs(&myaddrs) != 0)
-        {
-            perror("getifaddrs");
-            exit(1);
+void QServ::getLocation(clientinfo *ci) {
+    // get our localhost ip for comparison exclusion
+    char buf[64] = ""; // Initialize empty string so Windows safely reads it
+
+#ifndef _WIN32
+    // This code only runs on Linux/macOS to read local interfaces
+    struct ifaddrs *myaddrs, *ifa;
+    void *in_addr;
+
+    if(getifaddrs(&myaddrs) != 0) {
+        perror("getifaddrs");
+        exit(1);
+    }
+
+    for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) continue;
+        if (!(ifa->ifa_flags & IFF_UP)) continue;
+
+        switch (ifa->ifa_addr->sa_family) {
+            case AF_INET: {
+                struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
+                in_addr = &s4->sin_addr;
+                break;
+            }
+            default: continue;
         }
-        
-        for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next)
-        {
-            if (ifa->ifa_addr == NULL)
-                continue;
-            if (!(ifa->ifa_flags & IFF_UP))
-                continue;
-            
-            switch (ifa->ifa_addr->sa_family)
-            {
-                case AF_INET:
-                {
-                    struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
-                    in_addr = &s4->sin_addr;
-                    break;
-                }
-                default:
-                    continue;
-            }
-            
-            if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf)))
-            {
-                printf("[WARNING]: %s: inet_ntop failed! Connecting from a localhost internal IP could cause a crash\n", ifa->ifa_name);
-            }
+
+        if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf))) {
+            printf("[WARNING]: %s: inet_ntop failed! Connecting from a localhost internal IP could cause a crash\n", ifa->ifa_name);
         }
-        freeifaddrs(myaddrs);
-        
-        char *ip = toip(ci->clientnum);
-        //getstats(ci);
-        const char *location;
-        
-        /* Excluded localhost ip ranges
-         10.0.0.0 - 10.255.255.255 (10/8 prefix) *IGNORED*
-         172.16.0.0 - 172.31.255.255 (172.16/12 prefix)
-         192.168.0.0 - 192.168.255.255 (192.168/16 prefix)
-        */
-        char localhost_s1[] = "127.0.0.1";
-        char localhost_s2[] = "172.16";
-        char localhost_s3[] = "192.168";
-        if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3)) location = (char*)"localhost";
-        else location = cgip(ip).c_str();
-        
-        //format message for console/irc and server
-        int type = 0;
-        int typeconsole = 0;
-        const char *types[] = {
-            " connected from \f3unknown",
-            " \f7connected from \f3unknown", //usually localhost but catches externals as well
-            sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0"
-        };
-        const char *typesconsole[] = {
-            " connected from unknown",
-            " connected from unknown/localhost",
-            sendnearstatement ? " connected near " : " connected from "
-        };
-        
-        char lmsg[255];
-        char pmsg[255];
-        const char clientip = getclientip(ci->clientnum);
-        if(strlen(ip) > 2) {
-            
-            //unknown geoip lookup
-            if(!strcmp("(null)", location) || is_unknown_ip) {
-                type = 0;
-                typeconsole = 0;
-                
-            //localhost exclusion
-            } else if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3)) {
-                type = 1;
-                typeconsole = 1;
-                
-            //found geoip data
-            } else {
-                type = 2;
-                typeconsole = 2;
-                sprintf(lmsg, "%s %s", types[type], location);
-                sprintf(pmsg, "%s%s", typesconsole[typeconsole], location);
+    }
+    freeifaddrs(myaddrs);
+#endif
+
+    char *ip = toip(ci->clientnum);
+    //getstats(ci);
+    const char *location;
+
+    /* Excluded localhost ip ranges
+     * 10.0.0.0 - 10.255.255.255 (10/8 prefix) *IGNORED*
+     * 172.16.0.0 - 172.31.255.255 (172.16/12 prefix)
+     * 192.168.0.0 - 192.168.255.255 (192.168/16 prefix)
+     */
+    char localhost_s1[] = "127.0.0.1";
+    char localhost_s2[] = "172.16";
+    char localhost_s3[] = "192.168";
+
+    if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3))
+        location = (char*)"localhost";
+    else
+        location = cgip(ip).c_str();
+
+    // format message for console/irc and server
+    int type = 0;
+    int typeconsole = 0;
+
+    const char *types[] = {
+        " connected from \f3unknown",
+        " \f7connected from \f3unknown", //usually localhost but catches externals as well
+        sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0"
+    };
+
+    const char *typesconsole[] = {
+        " connected from unknown",
+        " connected from unknown/localhost",
+        sendnearstatement ? " connected near " : " connected from "
+    };
+
+    char lmsg[255];
+    char pmsg[255];
+    const char clientip = getclientip(ci->clientnum);
+
+    if(strlen(ip) > 2) {
+        // unknown geoip lookup
+        if(!strcmp("(null)", location) || is_unknown_ip) {
+            type = 0;
+            typeconsole = 0;
+            // localhost exclusion
+        } else if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3)) {
+            type = 1;
+            typeconsole = 1;
+            // found geoip data
+        } else {
+            type = 2;
+            typeconsole = 2;
+            sprintf(lmsg, "%s %s", types[type], location);
+            sprintf(pmsg, "%s%s", typesconsole[typeconsole], location);
+        }
+
+        if(!enable_HTTP_geo) {
+            defformatstring(msg)("\f0%s\f7%s", ci->name, (type < 2) ? types[type] : lmsg);
+            defformatstring(nocolormsg)("%s%s", ci->name, (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
+            out(ECHO_SERV,"%s",msg);
+            out(ECHO_NOCOLOR, "%s",nocolormsg);
+            geoip_record_copied = true;
+            is_unknown_ip = false; //reset
+        }
+
+        if(enable_HTTP_geo) {
+            try {
+                defformatstring(r_str)("%s%s%s", "http://ip-api.com/line/", ip, "?fields=city,regionName,country");
+                http::Request req(r_str);
+                const http::Response res = req.send("GET");
+                std::string s(res.body.begin(), res.body.end());
+                RString(s, "\n", " > ");
+                UTFEncode(s);
+                s.erase(s.length()-2, 2);
+
+                defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
+                out(ECHO_SERV,"%s", msg);
+
+                defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
+                out(ECHO_CONSOLE,"%s", cmsg);
             }
-            
-            if(!enable_HTTP_geo) {
-                defformatstring(msg)("\f0%s\f7%s", ci->name, (type < 2) ? types[type] : lmsg);
-                defformatstring(nocolormsg)("%s%s", ci->name, (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
-                out(ECHO_SERV,"%s",msg);
-                out(ECHO_NOCOLOR, "%s",nocolormsg);
-                geoip_record_copied = true;
-                is_unknown_ip = false; //reset
-            }
-            
-            if(enable_HTTP_geo) {
-                try
-                {
-                    defformatstring(r_str)("%s%s%s", "http://ip-api.com/line/", ip, "?fields=city,regionName,country");
-                    http::Request req(r_str);
-                    const http::Response res = req.send("GET");
-                    std::string s(res.body.begin(), res.body.end());
-                    RString(s, "\n", " > ");
-                    UTFEncode(s);
-                    s.erase(s.length()-2, 2);
-                    defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
-                    out(ECHO_SERV,"%s", msg);
-                    defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
-                    out(ECHO_CONSOLE,"%s", cmsg);
-                }
-                catch (const std::exception& e)
-                {
-                    std::cerr << "no geographical location information available for localhost IP" << '\n';
-                    //<< e.what() //<-- that returns the error message, we don't need it
-                }
+            catch (const std::exception& e) {
+                std::cerr << "no geographical location information available for localhost IP" << '\n';
+                //<< e.what() <-- that returns the error message, we don't need it
             }
         }
     }
+}
     
     void QServ::checkMsg(int cn) {
         ms[cn].count += 1;
