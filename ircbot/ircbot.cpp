@@ -377,11 +377,11 @@ reconnect:
     sa.sin_family = AF_INET;
     sa.sin_port = htons(ircport);
 
-    bcopy(
-        *he->h_addr_list,
-        (char *)&sa.sin_addr.s_addr,
-        sizeof(sa.sin_addr.s_addr)
-    );
+#ifdef _WIN32
+    memcpy((char *)&sa.sin_addr.s_addr, *he->h_addr_list, sizeof(sa.sin_addr.s_addr));
+#else
+    bcopy( *he->h_addr_list, (char *)&sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr) );
+#endif
 
     if(connect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0)
     {
