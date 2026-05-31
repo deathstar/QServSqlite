@@ -216,7 +216,7 @@ namespace server {
     
     struct clientinfo
     {
-        char *ip; //ipstring for QServ
+        char ip[64]; //ipstring for QServ
         int clientnum, ownernum, connectmillis, sessionid, overflow, connectedmillis; //qserv
         string name, team, mapvote;
         int playermodel;
