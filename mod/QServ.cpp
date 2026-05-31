@@ -21,6 +21,7 @@ namespace server {
         m_olangcheck = olangcheck;
         m_maxolangwarns = maxolangwarns;
         m_cmdprefix = cmdprefix;
+        pthread_mutex_init(&qserv_mutex, NULL);
     }
     
     QServ::~QServ() { ; }
@@ -45,10 +46,10 @@ namespace server {
     bool is_unknown_ip = false;
     bool geoip_record_copied = false;
     std::string QServ::cgip(const char *ip)  {
-        
         std::stringstream gipi;
         const char delimiter[] = ", ";
         GeoIPRecord *gipr = GeoIP_record_by_addr(city_geoip, ip);
+        
         if(gipr) {
             if(gipr->city != NULL && gipr->region != NULL && isalpha(*gipr->region) && gipr->country_name != NULL) {
                 gipi << gipr->city << delimiter << gipr->region << delimiter << gipr->country_name;
@@ -66,17 +67,22 @@ namespace server {
                 gipi << gipr->country_name;
                 sendnearstatement = false;
             }
+            // Free it immediately while inside the block before we return
+            GeoIPRecord_delete(gipr); 
         }
         else {
             gipi << "unknown location";
             is_unknown_ip = true;
         }
         return gipi.str();
-        if(gipr && geoip_record_copied) GeoIPRecord_delete(gipr); //don't clear until copied
     }
     
     void QServ::newcommand(const char *name, const char *desc, int priv, void (*callback)(int, char **args, int),
                            int args) {
+        if(m_lastcommand >= 50) {
+    		logoutf("[ERROR] Cannot register command '%s': Max limit of 50 reached.", name);
+    		return;
+		}
         snprintf(m_command[m_lastcommand].name, sizeof(m_command[m_lastcommand].name), "%c%s", m_cmdprefix, name);
 		snprintf(m_command[m_lastcommand].desc, sizeof(m_command[m_lastcommand].desc), "%s", desc);
         
@@ -257,36 +263,47 @@ namespace server {
         return ip;
     }
     
-    bool QServ::handleTextCommands(clientinfo *ci, char *text) {
+   bool QServ::handleTextCommands(clientinfo *ci, char *text) {
+        // 1. Initial defensive gates: Ensure pointers are valid before dereferencing
+        if(!ci || !text || text[0] == '\0') return false;
+    
+        // 2. Thread-safety: Lock the gate to ensure state synchronization
+        pthread_mutex_lock(&qserv_mutex);
+    
         setSender(ci->clientnum);
         setlastCI(ci);
         
         char ftb[1024] = {0};
-        
         snprintf(ftb, sizeof(ftb), "%s", text);
         setFullText(ftb);
         
         if(isCommand(text)) {
             char *args[20];
-            
-            
             int argc = 0;
-            char *token = 0;
+            char *token = NULL;
             
+            // 3. Secure Tokenizer: Strictly bound argc to less than the size of args array (20)
             token = strtok(text, " ");
-            while(token != NULL) {
+            while(token != NULL && argc < 20) {
                 args[argc] = token;
-                token = strtok(NULL, " ");
                 argc++;
+                token = strtok(NULL, " ");
+            }
+            
+            // 4. Validation Gate: If input was empty or contained only spaces, drop safely
+            if(argc == 0 || !args[0]) {
+                pthread_mutex_unlock(&qserv_mutex); // Always unlock before early returns!
+                return false;
             }
             
             int command = getCommand(0, args);
-            out(ECHO_CONSOLE, "%s issued: %s",colorname(ci), getFullText());
+            out(ECHO_CONSOLE, "%s issued: %s", colorname(ci), ftb);
+            
             if(command >= 0) {
-                
-                char fulltext[1024];
-                for(int j = 0; j <= strlen(ftb); j++) {
-                    fulltext[j] = ftb[j+strlen(args[0])+1];
+                char fulltext[1024] = {0};
+                size_t prefix_len = strlen(args[0]) + 1;
+                if (prefix_len < strlen(ftb)) {
+                    copystring(fulltext, ftb + prefix_len, sizeof(fulltext));
                 }
                 setFullText(fulltext);
                 
@@ -304,27 +321,28 @@ namespace server {
                     
                     setlastSA(fargs);
                     exeCommand(command, args, argc);
+                    
+                    pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
                     return false;
                 } else {
                     sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Insufficient permission");
+                    pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
                     return false;
                 }
             } else {
                 sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: Command not found. Use \f2\"#help\" \f3for a list of commands.");
+                pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
                 return false;
             }
         } else {
-            
-            if(strlen(ftb) < 1024 && irc.isConnected()) {
+            // 5. Secure IRC string verification: Ensure client attributes exist before using them
+            if(strlen(ftb) < 1024 && ci->name[0] != '\0' && irc.isConnected()) {
                 irc.speak("%s(%d): %s\r\n", ci->name, ci->clientnum, ftb);
                 printf("%s(%d): %s\r\n", ci->name, ci->clientnum, ftb);
-            } else {
-                //disconnect_client(ci->clientnum, DISC_OVERFLOW);
             }
-            //checkoLang(ci->clientnum, text);
         }
-        //memset(ftb,'\0',1000);
         
+        pthread_mutex_unlock(&qserv_mutex); // Final unlock path
         return false;
     }
     
@@ -392,23 +410,18 @@ namespace server {
         sqlite3_close(db);
     }*/
     
-    bool isPartOf(char* w1, char* w2)
-    {
-        int i=0;
-        int j=0;
+    bool isPartOf(const char* w1, const char* w2) {
+        int j = 0;
+        size_t len1 = strlen(w1);
+        size_t len2 = strlen(w2);
         
-        for(int i = 0; i < strlen(w1); i++)
-        {
-            if(w1[i] == w2[j])
-            {
+        for(size_t i = 0; i < len1; i++) {
+            if(w1[i] == w2[j]) {
                 j++;
+                if(j == len2) return true; // Found the full substring match sequentially
             }
         }
-        
-        if(strlen(w2) == j)
-            return true;
-        else
-            return false;
+        return false;
     }
     
 #include <stdio.h>
@@ -455,129 +468,170 @@ namespace server {
         RString(s, "ö", "o"); RString(s, "ü", "u"); RString(s, "ÿ", "y");
     }
     
-void QServ::getLocation(clientinfo *ci) {
-    // get our localhost ip for comparison exclusion
-    char buf[64] = ""; // Initialize empty string so Windows safely reads it
-
-#ifndef _WIN32
-    // This code only runs on Linux/macOS to read local interfaces
-    struct ifaddrs *myaddrs, *ifa;
-    void *in_addr;
-
-    if(getifaddrs(&myaddrs) != 0) {
-        perror("getifaddrs");
-        exit(1);
-    }
-
-    for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr == NULL) continue;
-        if (!(ifa->ifa_flags & IFF_UP)) continue;
-
-        switch (ifa->ifa_addr->sa_family) {
-            case AF_INET: {
-                struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
-                in_addr = &s4->sin_addr;
-                break;
-            }
-            default: continue;
-        }
-
-        if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf))) {
-            printf("[WARNING]: %s: inet_ntop failed! Connecting from a localhost internal IP could cause a crash\n", ifa->ifa_name);
-        }
-    }
-    freeifaddrs(myaddrs);
-#endif
-
-    char *ip = toip(ci->clientnum);
-    //getstats(ci);
-    const char *location;
-
-    /* Excluded localhost ip ranges
-     * 10.0.0.0 - 10.255.255.255 (10/8 prefix) *IGNORED*
-     * 172.16.0.0 - 172.31.255.255 (172.16/12 prefix)
-     * 192.168.0.0 - 192.168.255.255 (192.168/16 prefix)
-     */
-    char localhost_s1[] = "127.0.0.1";
-    char localhost_s2[] = "172.16";
-    char localhost_s3[] = "192.168";
-
-    if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3))
-        location = (char*)"localhost";
-    else
-        location = cgip(ip).c_str();
-
-    // format message for console/irc and server
-    int type = 0;
-    int typeconsole = 0;
-
-    const char *types[] = {
-        " connected from \f3unknown",
-        " \f7connected from \f3unknown", //usually localhost but catches externals as well
-        sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0"
-    };
-
-    const char *typesconsole[] = {
-        " connected from unknown",
-        " connected from unknown/localhost",
-        sendnearstatement ? " connected near " : " connected from "
-    };
-
-    char lmsg[255];
-    char pmsg[255];
-    const char clientip = getclientip(ci->clientnum);
-
-    if(strlen(ip) > 2) {
-        // unknown geoip lookup
-        if(!strcmp("(null)", location) || is_unknown_ip) {
-            type = 0;
-            typeconsole = 0;
-            // localhost exclusion
-        } else if(!strcmp(ip,localhost_s1) || !strcmp(buf, ip) || isPartOf(ip,localhost_s2) || isPartOf(ip,localhost_s3)) {
-            type = 1;
-            typeconsole = 1;
-            // found geoip data
-        } else {
-            type = 2;
-            typeconsole = 2;
-            snprintf(lmsg, sizeof(lmsg), "%s %s", types[type], location);
-			snprintf(pmsg, sizeof(pmsg), "%s%s", typesconsole[typeconsole], location);
-        }
-
-        if(!enable_HTTP_geo) {
-            defformatstring(msg)("\f0%s\f7%s", ci->name, (type < 2) ? types[type] : lmsg);
-            defformatstring(nocolormsg)("%s%s", ci->name, (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
-            out(ECHO_SERV,"%s",msg);
-            out(ECHO_NOCOLOR, "%s",nocolormsg);
-            geoip_record_copied = true;
-            is_unknown_ip = false; //reset
-        }
-
-        if(enable_HTTP_geo) {
-            try {
-                defformatstring(r_str)("%s%s%s", "http://ip-api.com/line/", ip, "?fields=city,regionName,country");
-                http::Request req(r_str);
-                const http::Response res = req.send("GET");
-                std::string s(res.body.begin(), res.body.end());
-                RString(s, "\n", " > ");
-                UTFEncode(s);
-                if (s.length() >= 2) {
-    				s.erase(s.length() - 2, 2);
-				}
-
-                defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
-                out(ECHO_SERV,"%s", msg);
-
-                defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
-                out(ECHO_CONSOLE,"%s", cmsg);
-            }
-            catch (const std::exception& e) {
-                std::cerr << "no geographical location information available for localhost IP" << '\n';
-                //<< e.what() <-- that returns the error message, we don't need it
-            }
-        }
-    }
-}
+	void QServ::getLocation(clientinfo *ci) {
+	    // 1. Core Defensive Gate: Don't execute if client or player state is completely null
+	    if (!ci) return;
+	
+	    // 2. Thread Synchronization: Guard player attributes and shared global triggers across threads
+	    pthread_mutex_lock(&qserv_mutex);
+	
+	    // Get our localhost ip for comparison exclusion
+	    char buf[64] = ""; // Initialize empty string so Windows safely reads it
+	
+	#ifndef _WIN32
+	    // This code only runs on Linux/macOS to read local interfaces
+	    struct ifaddrs *myaddrs = NULL, *ifa = NULL;
+	    void *in_addr = NULL;
+	
+	    if(getifaddrs(&myaddrs) != 0) {
+	        perror("getifaddrs");
+	        pthread_mutex_unlock(&qserv_mutex); // Unlock before early exits!
+	        return; 
+	    }
+	
+	    for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+	        if (ifa->ifa_addr == NULL) continue;
+	        if (!(ifa->ifa_flags & IFF_UP)) continue;
+	
+	        switch (ifa->ifa_addr->sa_family) {
+	            case AF_INET: {
+	                struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
+	                in_addr = &s4->sin_addr;
+	                break;
+	            }
+	            default: continue;
+	        }
+	
+	        if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf))) {
+	            printf("[WARNING]: %s: inet_ntop failed! Connecting from a localhost internal IP could cause a crash\n", ifa->ifa_name);
+	        }
+	    }
+	    if (myaddrs) freeifaddrs(myaddrs);
+	#endif
+	
+	    char *ip = toip(ci->clientnum);
+	    const char *location = NULL;
+	
+	    char localhost_s1[] = "127.0.0.1";
+	    char localhost_s2[] = "172.16";
+	    char localhost_s3[] = "192.168";
+	
+	    // 3. PERSISTENT MEMORY CONTAINER: Keeps the temporary std::string alive during evaluation!
+	    std::string geo_string_holder; 
+	
+	    if(!ip) {
+	        pthread_mutex_unlock(&qserv_mutex);
+	        return;
+	    }
+	
+	    if(!strcmp(ip, localhost_s1) || !strcmp(buf, ip) || isPartOf(ip, localhost_s2) || isPartOf(ip, localhost_s3)) {
+	        location = "localhost";
+	    }
+	    else {
+	        geo_string_holder = cgip(ip); // Safely holds the returned string in current stack scope
+	        location = geo_string_holder.c_str(); // Safe to reference now; no dangling memory pointer
+	    }
+	
+	    // format message for console/irc and server
+	    int type = 0;
+	    int typeconsole = 0;
+	
+	    const char *types[] = {
+	        " connected from \f3unknown",
+	        " \f7connected from \f3unknown", //usually localhost but catches externals as well
+	        sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0"
+	    };
+	
+	    const char *typesconsole[] = {
+	        " connected from unknown",
+	        " connected from unknown/localhost",
+	        sendnearstatement ? " connected near " : " connected from "
+	    };
+	
+	    // 4. Memory Initialization: Pre-clear stack arrays to prevent tracking junk characters
+	    char lmsg[255] = {0};
+	    char pmsg[255] = {0};
+	
+	    // Note: clientip left intact if referenced downstream, but validated pointer usage safely
+	    size_t ip_len = strlen(ip);
+	
+	    if(ip_len > 2) {
+	        // unknown geoip lookup
+	        if(!location || !strcmp("(null)", location) || is_unknown_ip) {
+	            type = 0;
+	            typeconsole = 0;
+	            // localhost exclusion
+	        } else if(!strcmp(ip, localhost_s1) || !strcmp(buf, ip) || isPartOf(ip, localhost_s2) || isPartOf(ip, localhost_s3)) {
+	            type = 1;
+	            typeconsole = 1;
+	            // found geoip data
+	        } else {
+	            type = 2;
+	            typeconsole = 2;
+	            snprintf(lmsg, sizeof(lmsg), "%s %s", types[type], location);
+	            snprintf(pmsg, sizeof(pmsg), "%s%s", typesconsole[typeconsole], location);
+	        }
+	
+	        if(!enable_HTTP_geo) {
+	            const char *display_name = (ci->name[0] != '\0') ? ci->name : "Unknown";
+	            defformatstring(msg)("\f0%s\f7%s", display_name, (type < 2) ? types[type] : lmsg);
+	            defformatstring(nocolormsg)("%s%s", display_name, (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
+	            
+	            out(ECHO_SERV, "%s", msg);
+	            out(ECHO_NOCOLOR, "%s", nocolormsg);
+	            geoip_record_copied = true;
+	            is_unknown_ip = false; //reset
+	        }
+	
+	        if(enable_HTTP_geo) {
+	            try {
+	                std::string s;
+	        
+	                // Check if the connecting player is on localhost
+	                if (strcmp(ip, "127.0.0.1") == 0 || strcmp(ip, "::1") == 0) {
+	                    s = "Localhost";
+	                } 
+	                else {
+	                    defformatstring(r_str)("%s%s%s", "http://ip-api.com/line/", ip, "?fields=city,regionName,country");
+	                    http::Request req(r_str);
+	                    const http::Response res = req.send("GET");
+	                    s.assign(res.body.begin(), res.body.end());
+	                    
+	                    RString(s, "\n", " > ");
+	                    UTFEncode(s);
+	                    if (s.length() >= 2) {
+	                        s.erase(s.length() - 2, 2);
+	                    }
+	                }
+	        
+	                // Verify the client still exists before using 'ci'
+	                bool is_still_connected = false;
+	                loopv(clients) {
+	                    if(clients[i] == ci) {
+	                        is_still_connected = true;
+	                        break;
+	                    }
+	                }
+	        
+	                if(is_still_connected) {
+	                    defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
+	                    out(ECHO_SERV, "%s", msg);
+	        
+	                    defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
+	                    out(ECHO_CONSOLE, "%s", cmsg);
+	                } else {
+	                    // Player left during the HTTP request; log to console silently
+	                    printf("GeoIP: Player disconnected before request finished.\n");
+	                }
+	            }
+	            catch (const std::exception& e) {
+	                std::cerr << "no geographical location information available for IP: " << ip << '\n';
+	            }
+	        }
+	    }
+	
+	    pthread_mutex_unlock(&qserv_mutex); // 5. Safe unlocking path
+	}
     
     void QServ::checkMsg(int cn) {
         ms[cn].count += 1;
