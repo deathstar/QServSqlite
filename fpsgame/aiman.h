@@ -146,7 +146,7 @@ namespace aiman
 			loopv(bots) { if(bots[i]) nbots++; }
 			if(nbots <= botnames.length()) {
 				int n = 0;
-				if(nbots < botnames.length()) n = random() % (botnames.length() - nbots); // avoid FPE % 0
+				if(nbots < botnames.length()) n = rnd(botnames.length() - nbots); // avoid FPE % 0
 				int x = 0;
 				loopv(botnames) {
 					bool found = false;
@@ -156,7 +156,7 @@ namespace aiman
 						if(x++ == n) break;
 					}
 				}
-			} else copystring(ci->name, botnames[random() % botnames.length()].name, MAXNAMELEN-1);
+			} else copystring(ci->name, botnames[rnd(botnames.length())].name, MAXNAMELEN-1);
 		} else copystring(ci->name, "bot", MAXNAMELEN+1);
 
         ci->state.state = CS_DEAD;
