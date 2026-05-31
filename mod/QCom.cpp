@@ -642,7 +642,14 @@ namespace server {
                                 }
                             }
                             if(location) snprintf(lmsg[1], sizeof(lmsg[1]), "%s", location);
-                            (CMD_SCI.privilege == PRIV_ADMIN) ? snprintf(lmsg[0], sizeof(lmsg[0]), "%s (%s)", lmsg[1], ip) : snprintf(lmsg[0], sizeof(lmsg[0]), "%s", lmsg[1]);
+                          	if (CMD_SCI.privilege == PRIV_ADMIN)
+                          	{
+                          	    formatstring(lmsg[0])("%s (%s)", lmsg[1], ip);
+                          	}
+                          	else
+                          	{
+                          	    copystring(lmsg[0], lmsg[1]);
+                          	}
                             if(qs.enable_HTTP_geo) {
                                 try
                                 {
@@ -1347,8 +1354,14 @@ namespace server {
                             send_connected_time(ci, CMD_SENDER);
                             
                             if(location) snprintf(lmsg[1], sizeof(lmsg[1]), "%s", location);
-                            (CMD_SCI.privilege == PRIV_ADMIN) ? snprintf(lmsg[0], sizeof(lmsg[0]), "%s (%s)", lmsg[1], ip) : 
-                            snprintf(lmsg[0], sizeof(lmsg[0]), "%s", lmsg[1]);
+                            if (CMD_SCI.privilege == PRIV_ADMIN)
+                            {
+                                formatstring(lmsg[0])("%s (%s)", lmsg[1], ip);
+                            }
+                            else
+                            {
+                                copystring(lmsg[0], lmsg[1]);
+                            }
                             
                             if(qs.enable_HTTP_geo) {
                                 try
