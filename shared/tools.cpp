@@ -111,14 +111,14 @@ int ipmask::print(char *buf) const
     {
         if(lastdigit >= 0) *buf++ = '.';
         loopj(i - lastdigit - 1) { *buf++ = '*'; *buf++ = '.'; }
-        buf += sprintf(buf, "%d", ipconv.b[i]);
+        buf += snprintf(buf, sizeof(buf), "%d", ipconv.b[i]);
         lastdigit = i;
     }
     enet_uint32 bits = ~ENET_NET_TO_HOST_32(mask);
     int range = 32;
     for(; (bits&0xFF) == 0xFF; bits >>= 8) range -= 8;
     for(; bits&1; bits >>= 1) --range;
-    if(!bits && range%8) buf += sprintf(buf, "/%d", range);
+    if(!bits && range%8) buf += snprintf(buf, sizeof(buf), "/%d", range);
     return int(buf-start);
 }
 
