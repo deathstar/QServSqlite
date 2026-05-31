@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 4.0)
-
 project(qserv LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -12,7 +11,6 @@ if(APPLE)
             OUTPUT_VARIABLE HOST_ARCH
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
-
         if(HOST_ARCH STREQUAL "x86_64")
             set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "" FORCE)
         elseif(HOST_ARCH STREQUAL "arm64")
@@ -27,7 +25,16 @@ endif()
 add_subdirectory(enet)
 add_subdirectory(GeoIP)
 
-find_package(ZLIB REQUIRED)
+# --- CORRECTED WINDOWS STATIC ZLIB OVERRIDE ---
+if(WIN32)
+    # Bypass find_package and hardcode paths to MinGW's internal static libz.a
+    set(ZLIB_FOUND TRUE)
+    set(ZLIB_LIBRARIES "C:/msys64/mingw64/lib/libz.a")
+    set(ZLIB_INCLUDE_DIRS "C:/msys64/mingw64/include")
+else()
+    find_package(ZLIB REQUIRED)
+endif()
+
 find_package(Threads REQUIRED)
 
 set(qserv_srcs
@@ -66,20 +73,40 @@ check_function_exists(poll HAS_POLL)
 check_function_exists(fcntl HAS_FCNTL)
 check_function_exists(inet_pton HAS_INET_PTON)
 check_function_exists(inet_ntop HAS_INET_NTOP)
-
 check_symbol_exists("struct msghdr.msg_flags" "sys/socket.h" HAS_MSGHDR_FLAGS)
 check_symbol_exists("socklen_t" "sys/types.h;sys/socket.h" HAS_SOCKLEN_T)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(qserv PRIVATE -rdynamic)
+    if(NOT WIN32)
+        target_link_options(qserv PRIVATE -rdynamic)
+    endif()
 endif()
 
+# Platform-specific static linking structures
+set(PLATFORM_LIBS)
+if(WIN32)
+    # Force complete static linking across GCC dependencies
+    target_link_options(qserv PRIVATE -static -static-libgcc -static-libstdc++)
+    
+    # FORCE ZLIB TO STOP GENERATING __imp_ DLL DECORATIONS
+    target_compile_definitions(qserv PRIVATE SQLITE_STATIC ZLIB_INTERNAL) # <-- CHANGED TO ZLIB_INTERNAL
+    
+    set(SQLITE3_LIBRARY "-l:libsqlite3.a")
+    set(ZLIB_LINK_TARGET "${ZLIB_LIBRARIES}")
+    set(PLATFORM_LIBS ws2_32 winmm)
+else()
+    set(SQLITE3_LIBRARY "sqlite3")
+    set(ZLIB_LINK_TARGET ZLIB::ZLIB)
+endif()
+
+# Core combined linking sequence with correct library processing order
 target_link_libraries(qserv PRIVATE
     enet
     GeoIP
-    sqlite3
-    ZLIB::ZLIB
+    ${SQLITE3_LIBRARY}
+    ${ZLIB_LINK_TARGET}
     Threads::Threads
+    ${PLATFORM_LIBS}
 )
 
 install(TARGETS qserv DESTINATION bin)
