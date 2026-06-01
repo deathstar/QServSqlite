@@ -9,7 +9,7 @@ FEATURES
 
 QUICK SETUP
 -----------------------------------------
-You can simply use the included Mac, Windows or Linux binaries. Configure your server in config/server-init.cfg and then double click on the corresponding binary for your operating system to start your server. If you wish to run your server in the background, you can use nohup ./qserv & instead (you will need to rename your OS specific binary to qserv first). If the provided binaries are not compatible with your hardware, then you can compile qserv to create a binary for your specific machine.
+You can simply use the included Mac, Windows or Linux binaries. Mac and Linux users will have to unzip their binary first. Configure your server in config/server-init.cfg and then double click on the corresponding binary for your operating system to start your server. If you wish to run your server in the background, you can use nohup ./qserv & from terminal instead (you will need to rename your OS specific binary to qserv first). If the provided binaries are not compatible with your hardware, then you can compile qserv to create a binary for your specific machine.
 
 CONFIGURATION
 ---------------------
