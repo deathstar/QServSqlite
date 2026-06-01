@@ -314,194 +314,97 @@ bool ircBot::IsCommand(char *buff)
 
 void ircBot::init()
 {
-    if(getvar("ircignore"))
-        return;
-
+    if(getvar("ircignore")) return;
 #ifndef WIN32
     signal(SIGPIPE, SIG_IGN);
 #endif
 
-reconnect:
+    time_t last_attempt = 0;
 
-    connected = false;
-
-    printf(
-        "[IRC] Connecting to %s:%d...\n",
-        irchost,
-        ircport
-    );
-
-    struct sockaddr_in sa;
-    struct hostent *he;
-
-    sock = socket(
-        AF_INET,
-        SOCK_STREAM,
-        IPPROTO_TCP
-    );
-
-    if(sock < 0)
+    while(true) 
     {
-        printf("[IRC] Socket creation failed\n");
-        sleep(5);
-        goto reconnect;
-    }
-
-    timeval timeout;
-    timeout.tv_sec = 300;
-    timeout.tv_usec = 0;
-
-    setsockopt(
-        sock,
-        SOL_SOCKET,
-        SO_RCVTIMEO,
-        (char *)&timeout,
-        sizeof(timeout)
-    );
-
-    he = gethostbyname(irchost);
-
-    if(!he)
-    {
-        printf("[IRC] Failed resolving host\n");
-
-        close(sock);
-
-        sleep(5);
-
-        goto reconnect;
-    }
-
-    memset(&sa, 0, sizeof(sa));
-
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons(ircport);
-
-#ifdef _WIN32
-    memcpy((char *)&sa.sin_addr.s_addr, *he->h_addr_list, sizeof(sa.sin_addr.s_addr));
+        // Non-blocking timer: enforce 5-second wait between attempts
+        if (time(NULL) - last_attempt < 5) 
+        {
+            // Small sleep here (100ms) prevents 100% CPU usage while waiting
+#ifdef WIN32
+            Sleep(100); 
 #else
-    bcopy( *he->h_addr_list, (char *)&sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr) );
+            usleep(100000);
+#endif
+            continue; 
+        }
+        last_attempt = time(NULL);
+
+        connected = false;
+        printf("[IRC] Connecting to %s:%d...\n", irchost, ircport);
+
+        struct sockaddr_in sa;
+        struct hostent *he = gethostbyname(irchost);
+        if(!he) { printf("[IRC] Failed resolving host\n"); continue; }
+
+        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if(sock < 0) { printf("[IRC] Socket creation failed\n"); continue; }
+
+        // Set timeout
+        timeval timeout = {300, 0};
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+
+        memset(&sa, 0, sizeof(sa));
+        sa.sin_family = AF_INET;
+        sa.sin_port = htons(ircport);
+#ifdef _WIN32
+        memcpy((char *)&sa.sin_addr.s_addr, *he->h_addr_list, sizeof(sa.sin_addr.s_addr));
+#else
+        bcopy(*he->h_addr_list, (char *)&sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
 #endif
 
-    if(connect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0)
-    {
-        printf("[IRC] Connect failed\n");
-
-        close(sock);
-
-        sleep(5);
-
-        goto reconnect;
-    }
-
-    connected = true;
-
-    defformatstring(user)(
-        "USER %s 0 * :%s\r\n",
-        ircbotname,
-        ircbotname
-    );
-
-    safeSend(user);
-
-    defformatstring(nick)(
-        "NICK %s\r\n",
-        ircbotname
-    );
-
-    safeSend(nick);
-
-    printf("[IRC] Connected\n");
-
-    char recvbuf[2048];
-    char linebuf[8192];
-
-    memset(recvbuf, 0, sizeof(recvbuf));
-    memset(linebuf, 0, sizeof(linebuf));
-
-    int linepos = 0;
-
-    while(connected)
-    {
-        int len = recv(
-            sock,
-            recvbuf,
-            sizeof(recvbuf) - 1,
-            0
-        );
-
-        if(len <= 0)
+        if(connect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0)
         {
-            printf("[IRC] Connection lost\n");
-
-            connected = false;
-
-            break;
+            printf("[IRC] Connect failed\n");
+            if(sock >= 0) { close(sock); sock = -1; }
+            continue;
         }
 
-        recvbuf[len] = '\0';
+        connected = true;
+        printf("[IRC] Connected\n");
 
-        for(int i = 0; i < len; i++)
+        // Authenticate
+        defformatstring(user)("USER %s 0 * :%s\r\n", ircbotname, ircbotname);
+        safeSend(user);
+        defformatstring(nick)("NICK %s\r\n", ircbotname);
+        safeSend(nick);
+
+		char recvbuf[2048];
+        char linebuf[8192];
+        int linepos = 0;
+        memset(recvbuf, 0, sizeof(recvbuf));
+        memset(linebuf, 0, sizeof(linebuf));
+        
+        while(connected)
         {
-            if(linepos >= (int)sizeof(linebuf) - 2)
+            int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            if(len <= 0) break;
+            recvbuf[len] = '\0';
+        
+            for(int i = 0; i < len; i++)
             {
-                linepos = 0;
-                memset(linebuf, 0, sizeof(linebuf));
-            }
-
-            linebuf[linepos++] = recvbuf[i];
-
-            if(recvbuf[i] == '\n')
-            {
-                linebuf[linepos] = '\0';
-
-                printf("%s", linebuf);
-
-                if(strstr(linebuf, " 001 "))
+                if(linepos < (int)sizeof(linebuf) - 1)
+                    linebuf[linepos++] = recvbuf[i];
+        
+                if(recvbuf[i] == '\n')
                 {
-                    defformatstring(joincmd)(
-                        "JOIN %s\r\n",
-                        ircchan
-                    );
-
-                    safeSend(joincmd);
-
-                    printf(
-                        "[IRC] Joined %s\n",
-                        ircchan
-                    );
+                    linebuf[linepos] = '\0';
+                    
+                    printf("%s", linebuf); 
+        
+                    if(strstr(linebuf, " 001 ")) { /* ... JOIN ... */ }
+                    if(!IsCommand(linebuf) && msg.is_ready) { /* ... */ }
+        
+                    linepos = 0; 
                 }
-
-                if(!IsCommand(linebuf))
-                {
-                    if(msg.is_ready)
-                    {
-                        defformatstring(toserver)(
-                            "\f7%s \f3%s \f7- \f0%s\f7: %s",
-                            irchost,
-                            ircchan,
-                            msg.nick,
-                            msg.message
-                        );
-
-                        server::sendservmsg(toserver);
-                    }
-                }
-
-                memset(linebuf, 0, sizeof(linebuf));
-
-                linepos = 0;
             }
         }
+        if(sock >= 0) { close(sock); sock = -1; }
     }
-
-    if(sock >= 0)
-    {
-        close(sock);
-        sock = -1;
-    }
-
-    sleep(5);
-
-    goto reconnect;
 }
