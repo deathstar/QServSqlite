@@ -7,42 +7,9 @@ FEATURES
 
 40+ commands, SQL database stored/displayed lifetime player stats, full database integration, heal teammates by shooting them, pass the flag to teammates by shooting them, killing spree messages, GeoIP or HTTP city/region & country geolocation by IP, IRC Bot with commands, mobile phone IRC server administration (kick/ban/etc.), multi-server chat linkage, custom bot names, show admins client IPs on connect, smartbot (weather/translator/dictionary/calculator), server stored maps, longshot/close up kills, end game stats, server command builder, reloadable server configuration/authkeys live without restart, banlist, selective unbanning, banning by ip, permanent banning (even after restart), chat/server log with time, automatically send custom maps from the server with lightmaps, lag detection, instagib on automatically sent maps from the server with lights, no damage toggle, stored flagrun times, banner messages, no 1 person private mode toggle, greet clients with name toggle, default gamemode/map option, spam protection, overload protection, clanwar command (starts a timer and enables persistent teams), ability to call administrators from server, etc.
 
-REQUIREMENTS FOR COMPILING
+QUICK SETUP
 -----------------------------------------
-
-**MAC OSX**
-
-- xCode: Go to the App Store and download "xCode," or visit: https://developer.apple.com/xcode/download/
-- xCode command Line tools, run: "xcode-select --install" from Terminal after xCode is installed
-- CMake: download CMake for command line, or a GUI from https://cmake.org/download/
-
-**LINUX**
-
- - install CMake: "sudo apt-get install cmake" 
- - install Zlib: "sudo apt-get install zlib1g-dev"
- - install sqlite3: "sudo apt install libsqlite3-dev"
- - install a compiler: "sudo apt-get install build-essential"
- 
-**WINDOWS**
-
-- Install MSYS2: https://www.msys2.org/
-- Open the MSYS2 MINGW64 Terminal, and run: "pacman -Syu" and "pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git mingw-w64-x86_64-sqlite3"
-
-WINDOWS COMPILATION 
---------------------------
-- From the MSYS2 MINGW64 Terminal, run: mkdir build; cd build then run: cmake -G "MinGW Makefiles" .. and finally run: cmake --build .
-- The path to the source code and executable is C:\msys64\home\<Your_Windows_Username>
-
-MAC/LINUX COMPILATION INSTRUCTIONS 
---------------------------
-
-Please make sure you have all of the requirements for compiling (listed above) installed before continuing. 
-
-1) Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020"
-2) run "cmake .; make" to compile QServ 
-6) Run the start server command: "./qserv" for a live log, "nohup ./qserv &" to run your server in the background; The log will append to nohup.out.
-
-- Press Control-C to stop, or use "top" to get the PID of QServ then use "kill PID" to kill a background server
+You can simply use the included Mac, Windows or Linux binaries. Configure your server in config/server-init.cfg and then double click on the corresponding binary for your operating system to start your server. If you wish to run your server in the background, you can use nohup ./qserv & instead (you will need to rename your OS specific binary to qserv first). If the provided binaries are not compatible with your hardware, then you can compile qserv to create a binary for your specific machine.
 
 CONFIGURATION
 ---------------------
@@ -52,26 +19,60 @@ CONFIGURATION
 - Type "chmod -R 777 config" from the command line to give QServ permission to access the configuration files
 - Create a "packages/base" folder set in the QServ root directory. Then, type "chmod -R 777 packages" from the command line to give QServ permission to store maps. (optional)
 
+COMPILATION
+-----------------------------------------
+If you want to modify the code to make changes, add commands, change gameplay variables, etc. then you will need to compile QServ.
+
+**MAC OSX PREREQUISITES**
+
+- xCode: Go to the App Store and download "xCode," or visit: https://developer.apple.com/xcode/download/
+- xCode command Line tools, run: "xcode-select --install" from Terminal after xCode is installed
+- CMake: download CMake for command line, or a GUI from https://cmake.org/download/
+
+**LINUX PREREQUISITES**
+
+ - install CMake: "sudo apt-get install cmake" 
+ - install Zlib: "sudo apt-get install zlib1g-dev"
+ - install sqlite3: "sudo apt install libsqlite3-dev"
+ - install a compiler: "sudo apt-get install build-essential"
+
+**UNIX COMPILATION**
+
+- Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020"
+- run "cmake .; make" to compile QServ 
+- Run the start server command: "./qserv" for a live log, or "nohup ./qserv &" to run your server in the background; The log will append to nohup.out. You can read it by running nano nohup.out
+- Press Control-C to stop, or use "top" to get the PID of QServ then use "kill PID" to kill a background server
+ 
+**WINDOWS**
+
+- Install MSYS2: https://www.msys2.org/
+- Open the MSYS2 MINGW64 Terminal and run: pacman -Syu
+- Run: pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git mingw-w64-x86_64-sqlite3
+- Run: git clone https://github.com/deathstar/QServSqlite
+- Run: cmake .; cmake --build .
+- The path to the source code and executable is C:\msys64\home\<Your_Windows_Username>
+
 TROUBLESHOOTING
 -------------------------
 
 WARNING: could not create LAN server info socket or server error: could not create server info socket
-If you're hosting on Mac OSX, you will need to disable your built in firewall, and or restart your computer to fix socket binding.
-check and look up error number in "[LAN SOCKET] reuseaddr or bind failed errno=48" message for more specific information.
+The LAN server info socket is only necessary for local area network server visibility, and will not affect other clients.
+The server info socket port is crucial to have your server displayed on the masterserver, and is likely blocked by your firewall.
 
-CMake Error at enet/CMakeLists.txt:1 (cmake_minimum_required):
-Compatibility with CMake < 3.5 has been removed from CMake.
-run the command: cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+CMake Error at enet/CMakeLists.txt:1 (cmake_minimum_required): Compatibility with CMake < 3.5 has been removed from CMake.
+run the command: cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5 or change the variable cmake_minimum_required in CMakeLists.txt
 
 Can't see player city/state/country msg: try using geoIP geolocation instead of HTTP. To do this, change "usehttpgeolocation 1" to "usehttpgeolocation 0" in config/server-init.cfg. Also, make sure the file permissions are set to allow QServ access to the config folder. You can just use "chmod -R 777 qserv2020" from the command line. 
 
 flagruns not storing: You can just use "chmod -R 777 qserv2020" from the command line to give QServ access to its files.
 
-QServ IRC not launching at all: you either restarted the server too much or flooded IRC, try a different IRC server.
+QServ IRC not launching at all: set ircignore to 0, or you restarted the server too much or flooded IRC, try a different IRC server.
 
-segmentation fault: send the server logs to DeathStar - gscottmalibu@gmail.com for debugging.
+segmentation fault: create a issue on this github page, you can also optionally debug the crash with lldb or gdb.
 
 Compile failures: you can attempt to compile enet/sqlite/geoip/zlib manually. The compilation is usually done by changing to the relevant directory and then running: "./configure; make"
+
+Missing libraries: sqlite/zlib/enet/geoip. You can install the libraries seperately and QServ will find them.
 
 localhost failures: try using HTTP Geolocation with use_HTTP_geo 1 in server-init.cfg to fix these issues.
 
