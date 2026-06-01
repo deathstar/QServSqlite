@@ -5,14 +5,16 @@
 
 struct IrcMsg
 {
-    char nick[32];
-    char user[32];
+    char nick[64];
+    char user[64];
     char host[64];
-    char chan[32];
-    char message[512];
+    char chan[64];
+    char message[1000];
 
     int is_ready;
 };
+
+extern volatile bool irc_running;
 
 class ircBot
 {
