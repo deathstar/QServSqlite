@@ -3538,6 +3538,8 @@ best.add(clients[i]); \
         return ret;
     }
     
+    extern std::vector<std::string> editMutedIPs;
+    extern std::vector<std::string> lockedSpecIPs;
 	int clientconnect(int n, uint ip, char *ipstr)
     {
     	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
@@ -3553,11 +3555,21 @@ best.add(clients[i]); \
        	}
    
        	connects.add(ci);
-       	if (ci->isSpecLocked) forcespectator(ci);
-        if (ci->votedmapsucks) ci->votedmapsucks = true;
-   
+       	for(const auto &mutedIP : editMutedIPs) {
+    		if(strcmp(mutedIP.c_str(), ci->ip) == 0) {
+        		ci->isEditMuted = true;
+        		break; 
+    		}
+		}
+		for(const auto &lockedIP : lockedSpecIPs) {
+		    if(strcmp(lockedIP.c_str(), ci->ip) == 0) {
+		        ci->isSpecLocked = true;
+		        forcespectator(ci); 
+		        break;
+		    }
+		}
         if (!m_mp(gamemode)) return DISC_LOCAL;
-   
+   		ci->votedmapsucks = false;
         ci->stats_saved_this_session = false;
         ci->stats_loaded = false;
         loadstats(ci);
