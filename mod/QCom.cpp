@@ -399,24 +399,34 @@ namespace server {
         if(usage) sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
     }
     
-    VAR(votestopassmapsucks, 2, 10, INT_MAX);
+   	#include <vector>
+    #include <string>
+    #include <cstring> 
+    
+    std::vector<std::string> votedIPs;
     int mapsucksvotes = 0;
     QSERV_CALLBACK mapsucks_cmd(p) {
         clientinfo *ci = qs.getClient(CMD_SENDER);
-        if(!ci->votedmapsucks) {
-            mapsucksvotes++;
-            out(ECHO_SERV, "\f0%s \f7thinks this map sucks, use \f2#mapsucks \f7to vote for an intermission to skip it.", colorname(ci));
-            ci->votedmapsucks = true;
-            if(mapsucksvotes>=getvar("votestopassmapsucks")) {
-                startintermission();
-                out(ECHO_SERV, "\f7Changing map: That map sucked (\f7%d \f7votes to skip)", votestopassmapsucks);
-                while(mapsucksvotes>=getvar("votestopassmapsucks")) {
-                    mapsucksvotes = 0;
-                    out(ECHO_SERV,"\f7Clearing votes...");
-                }
+    
+        for(const auto &ip : votedIPs) {
+            if(strcmp(ip.c_str(), ci->ip) == 0) {
+                sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: You have already voted on this map.");
+                return;
             }
         }
-        else if(ci->votedmapsucks) sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: You have already voted");
+    
+        mapsucksvotes++;
+        votedIPs.push_back(ci->ip);
+        
+        out(ECHO_SERV, "\f0%s \f7thinks this map sucks, use \f2#mapsucks \f7to vote for an intermission.", colorname(ci));
+    
+        if(mapsucksvotes >= (maxclients / 2)) {
+            startintermission();
+            
+            mapsucksvotes = 0;
+            votedIPs.clear();
+            out(ECHO_SERV, "\f7Changing map: That map sucked.");
+        }
     }
     
     //min, default, max
