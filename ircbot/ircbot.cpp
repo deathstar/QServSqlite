@@ -15,6 +15,8 @@
 
 #include <pthread.h>
 
+volatile bool irc_running = true;
+
 vector<IRCCommand> ircCommandQueue;
 
 pthread_mutex_t ircCommandMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -241,20 +243,20 @@ void ircBot::ParseMessage(char *buff)
     }
 
     if(sscanf(
-        buff,
-        ":%[^!]!%[^@]@%[^ ] %*[^ ] %[^ :] :%[^\r\n]",
-        msg.nick,
-        msg.user,
-        msg.host,
-        msg.chan,
-        msg.message
-    ) == 5)
-    {
-        msg.is_ready = 1;
-
-        if(msg.chan[0] != '#')
-            strcpy(msg.chan, msg.nick);
-    }
+            buff,
+            ":%63[^!]!%63[^@]@%63[^ ] %*[^ ] %63[^ :] :%999[^\r\n]",
+            msg.nick,
+            msg.user,
+            msg.host,
+            msg.chan,
+            msg.message
+        ) == 5)
+        {
+            msg.is_ready = 1;
+    
+            if(msg.chan[0] != '#')
+                strcpy(msg.chan, msg.nick);
+        }
     else
     {
         msg.is_ready = 0;
@@ -321,7 +323,7 @@ void ircBot::init()
 
     time_t last_attempt = 0;
 
-    while(true) 
+    while(irc_running) 
     {
         // Non-blocking timer: enforce 5-second wait between attempts
         if (time(NULL) - last_attempt < 5) 
@@ -381,7 +383,7 @@ void ircBot::init()
         memset(recvbuf, 0, sizeof(recvbuf));
         memset(linebuf, 0, sizeof(linebuf));
         
-        while(connected)
+        while(connected && irc_running)
         {
             int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
             if(len <= 0) break;
@@ -398,8 +400,22 @@ void ircBot::init()
                     
                     printf("%s", linebuf); 
         
-                    if(strstr(linebuf, " 001 ")) { /* ... JOIN ... */ }
-                    if(!IsCommand(linebuf) && msg.is_ready) { /* ... */ }
+                    if(strstr(linebuf, " 001 ")) { 
+                    	irc.join(ircchan); 
+    					printf("[IRC] Joined %s\n", ircchan);
+                    }
+                    if(!IsCommand(linebuf) && msg.is_ready) 
+                    {
+                        defformatstring(toserver)(
+                            "\f7%s \f3%s \f7- \f0%s\f7: %s",
+                            irchost,
+                            ircchan,
+                            msg.nick,
+                            msg.message
+                        );
+                    
+                        server::sendservmsg(toserver);
+                    }
         
                     linepos = 0; 
                 }
