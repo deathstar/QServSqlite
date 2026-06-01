@@ -1,7 +1,15 @@
-#include "../mod/QServ.h"
+#include <vector>
+#include <string>
+#include <iostream>
+#include <exception>
 #include <stdio.h>
 #include <stdlib.h>
-#include <../sqlite/sqlite3.h>
+#include "../sqlite/sqlite3.h"
+#include "../mod/QServ.h"
+
+::std::vector<::std::string> votedIPs;
+::std::vector<::std::string> editMutedIPs;
+::std::vector<::std::string> lockedSpecIPs;
 
 int count = 0;
 int msgcount[128];
@@ -2384,7 +2392,6 @@ namespace server {
         notgotitems = false;
     }
     VAR(defaultgamespeed, 10, 100, 1000);
-    extern std::vector<std::string> votedIPs;
 	extern int mapsucksvotes;
     void changemap(const char *s, int mode)
     {
@@ -3538,8 +3545,6 @@ best.add(clients[i]); \
         return ret;
     }
     
-    extern std::vector<std::string> editMutedIPs;
-    extern std::vector<std::string> lockedSpecIPs;
 	int clientconnect(int n, uint ip, char *ipstr)
     {
     	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
