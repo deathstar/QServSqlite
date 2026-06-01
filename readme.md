@@ -9,9 +9,9 @@ FEATURES
 
 QUICK SETUP
 -----------------------------------------
-Windows users can simply configure their server in config/server-init.cfg and then start their server by clicking on qserv.exe
-Mac and Linux users have to unzip their binary and then open terminal and execute ./qserv or nohup ./qserv & for a background server
-You will also have to forward ports 28785 and 28786 to the internal IP address of the host computer using UDP
+Windows users can simply configure their server in config/server-init.cfg and then start their server by clicking on qserv.exe.
+Mac and Linux users have to unzip their binary and then open terminal and execute ./qserv or nohup ./qserv & for a background server.
+You will also have to forward ports 28785 and 28786 to the internal IP address of the host computer using UDP.
 
 CONFIGURATION
 ---------------------
