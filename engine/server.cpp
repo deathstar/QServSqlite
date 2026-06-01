@@ -1313,12 +1313,19 @@ int main(int argc, char **argv) {
     if (c)
         fatal("[FATAL ERROR]: Failed to create IRC thread");
 
-    // IRC runs independently; server must not depend on it
-    pthread_detach(irc_thread_id);
-
-    // main server thread controls lifetime
+   	// main server thread controls lifetime
     pthread_join(main_thread_id, NULL);
+    
+    irc_running = false;
+    if (irc.getSock() >= 0) close(irc.getSock()); 
+
+    pthread_join(irc_thread_id, NULL);
 
     server::serverclose();
+    
+#ifdef _WIN32
+    WSACleanup(); 
+#endif
+
     return EXIT_SUCCESS;
 }
