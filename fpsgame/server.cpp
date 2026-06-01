@@ -2384,7 +2384,8 @@ namespace server {
         notgotitems = false;
     }
     VAR(defaultgamespeed, 10, 100, 1000);
-    extern int mapsucksvotes;
+    extern std::vector<std::string> votedIPs;
+	extern int mapsucksvotes;
     void changemap(const char *s, int mode)
     {
         //can cause excess flood on loop i mapchange for IRC
@@ -2395,6 +2396,8 @@ namespace server {
         changegamespeed(defaultgamespeed);
         if(smode) smode->cleanup();
         aiman::clearai();
+        votedIPs.clear(); //mapsucks votes
+        mapsucksvotes = 0;
         gamemode = mode;
         gamemillis = 0;
         gamelimit = 10*60000;
