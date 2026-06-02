@@ -1,4 +1,4 @@
-![Project Screenshot](Banner.jpg)
+![QServSQLite Cube 2: Sauerbraten Server Mod](Banner.png)
 
 # ![](https://cdn0.iconfinder.com/data/icons/HDRV/32/Grey_Server_B.png) QServ [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/deathstar/qserv2020/wiki/) ![](https://img.shields.io/badge/build-passing-success) ![](https://img.shields.io/badge/dependencies-zlib%2C%20build--essential%2C%20enet%2C%20GeoIP%2C%20cmake%2C%20sqlite-success)
 
