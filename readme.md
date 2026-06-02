@@ -1,106 +1,498 @@
 ![QServSQLite Cube 2: Sauerbraten Server Mod](Banner.png)
 
-# ![](https://cdn0.iconfinder.com/data/icons/HDRV/32/Grey_Server_B.png) QServ [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/deathstar/qserv2020/wiki/) ![](https://img.shields.io/badge/build-passing-success) ![](https://img.shields.io/badge/dependencies-zlib%2C%20build--essential%2C%20enet%2C%20GeoIP%2C%20cmake%2C%20sqlite-success)
+<div align="center">
 
-[QServ](https://techmasterdesign.com/qserv/) is a standalone Cube 2: Sauerbraten server that is written entirely in C and C++. The entire command system is split away from the existing server, allowing for ease of upgradability and better organization. The server also features complimentary functions for C++ and C that allow users to more easily create their own commands, functions, and modifications. Easily customize gameplay by enabling or disabling different modules, control the server from a browser, or even send custom server stored maps with lights to clients to play Insta on. 
+ [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/deathstar/qserv2020/wiki/)
+![build](https://img.shields.io/badge/build-passing-success)
+![dependencies](https://img.shields.io/badge/dependencies-zlib%2C%20enet%2C%20GeoIP%2C%20cmake%2C%20sqlite-success)
+![license](https://img.shields.io/badge/license-MIT-blue)
 
-FEATURES
--------------
+</div>
 
-40+ commands, SQL database stored/displayed lifetime player stats, full database integration, heal teammates by shooting them, pass the flag to teammates by shooting them, killing spree messages, GeoIP or HTTP city/region & country geolocation by IP, IRC Bot with commands, mobile phone IRC server administration (kick/ban/etc.), multi-server chat linkage, custom bot names, show admins client IPs on connect, smartbot (weather/translator/dictionary/calculator), server stored maps, longshot/close up kills, end game stats, server command builder, reloadable server configuration/authkeys live without restart, banlist, selective unbanning, banning by ip, permanent banning (even after restart), chat/server log with time, automatically send custom maps from the server with lightmaps, lag detection, instagib on automatically sent maps from the server with lights, no damage toggle, stored flagrun times, banner messages, no 1 person private mode toggle, greet clients with name toggle, default gamemode/map option, spam protection, overload protection, clanwar command (starts a timer and enables persistent teams), ability to call administrators from server, etc.
+---
 
-QUICK SETUP
------------------------------------------
-Windows users can simply configure their server in config/server-init.cfg and then start their server by clicking on qserv.exe.
-Mac and Linux users have to unzip their binary and then open terminal and execute ./qserv or nohup ./qserv & for a background server.
-You will also have to forward ports 28785 and 28786 to the internal IP address of the host computer using UDP.
+## Overview
 
-CONFIGURATION
----------------------
+QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that significantly expands the capabilities of the original dedicated server.
 
-- Configure general attributes in config/server-init.cfg
-- Add authkeys in config/users.cfg
-- Type "chmod -R 777 config" from the command line to give QServ permission to access the configuration files
-- Create a "packages/base" folder set in the QServ root directory. Then, type "chmod -R 777 packages" from the command line to give QServ permission to store maps. (optional)
+Unlike traditional server modifications, QServ separates its command system from the core server implementation, making upgrades, maintenance, and feature development far easier. The result is a highly customizable, cross platform, feature-rich server platform that has evolved over more than 17 years of development.
 
-COMPILATION
------------------------------------------
-If you want to modify the code to make changes, add commands, change gameplay variables, etc. then you will need to compile QServ.
+Whether you're running a public server, competitive clan server, private community, or custom game mode, QServ provides powerful administration tools, persistent player statistics, automated content delivery, browser-based management, and extensive gameplay enhancements.
 
-**MAC OSX PREREQUISITES**
+---
 
-- xCode: Go to the App Store and download "xCode," or visit: https://developer.apple.com/xcode/download/
-- xCode command Line tools, run: "xcode-select --install" from Terminal after xCode is installed
-- CMake: download CMake for command line, or a GUI from https://cmake.org/download/
+## Why QServ?
 
-**LINUX PREREQUISITES**
+- Persistent SQLite-backed player statistics
+- Browser-based administration
+- Mobile phone administration through IRC
+- Automatic custom map distribution
+- Advanced moderation tools
+- Extensive gameplay customization
+- Multi-server chat linking
+- Geolocation services
+- SmartBot utilities
+- Live configuration reloading
+- Cross-platform support
+- Easy-to-extend command architecture
 
- - install CMake: "sudo apt-get install cmake" 
- - install Zlib: "sudo apt-get install zlib1g-dev"
- - install sqlite3: "sudo apt install libsqlite3-dev"
- - install a compiler: "sudo apt-get install build-essential"
+---
 
-**UNIX COMPILATION**
+# ✨ Features
 
-- Download QServ by [clicking here](https://codeload.github.com/deathstar/qserv2020/zip/master) or run "git clone https://github.com/deathstar/QServ2020"
-- run "cmake .; make" to compile QServ 
-- Run the start server command: "./qserv" for a live log, or "nohup ./qserv &" to run your server in the background; The log will append to nohup.out. You can read it by running nano nohup.out
-- Press Control-C to stop, or use "top" to get the PID of QServ then use "kill PID" to kill a background server
- 
-**WINDOWS**
+## 📊 Statistics & Database
 
-- Install MSYS2: https://www.msys2.org/
-- Open the MSYS2 MINGW64 Terminal and run: pacman -Syu
-- Run: pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git mingw-w64-x86_64-sqlite3
-- Run: git clone https://github.com/deathstar/QServSqlite
-- Run: cmake .; cmake --build .
-- The path to the source code and executable is C:\msys64\home\<Your_Windows_Username>
+- SQLite-backed player database
+- Lifetime player statistics
+- Persistent player records
+- End-game statistics
+- Stored flagrun records
+- Full database integration
 
-TROUBLESHOOTING
--------------------------
+## 🛡️ Administration & Moderation
 
-WARNING: could not create LAN server info socket or server error: could not create server info socket
-The LAN server info socket is only necessary for local area network server visibility, and will not affect other clients.
-The server info socket port is crucial to have your server displayed on the masterserver, and is likely blocked by your firewall.
+- 40+ administrative commands
+- Permanent bans
+- IP bans
+- Selective unbanning
+- Banlist management
+- Live authkey reloading
+- Live configuration reloading
+- Admin IP visibility
+- Browser-based administration
+- Mobile administration
+- Call-admin functionality
+- Anti-spam protection
+- Server overload protection
 
-CMake Error at enet/CMakeLists.txt:1 (cmake_minimum_required): Compatibility with CMake < 3.5 has been removed from CMake.
-run the command: cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5 or change the variable cmake_minimum_required in CMakeLists.txt
+## 🌎 Networking & Community
 
-Can't see player city/state/country msg: try using geoIP geolocation instead of HTTP. To do this, change "usehttpgeolocation 1" to "usehttpgeolocation 0" in config/server-init.cfg. Also, make sure the file permissions are set to allow QServ access to the config folder. You can just use "chmod -R 777 qserv2020" from the command line. 
+- IRC bot integration
+- IRC administration commands
+- Multi-server chat linking
+- GeoIP geolocation
+- HTTP geolocation support
+- Country detection
+- State and region detection
+- City detection
+- SmartBot IRC integration
+  - Weather
+  - Translator
+  - Dictionary
+  - Calculator
 
-flagruns not storing: You can just use "chmod -R 777 qserv2020" from the command line to give QServ access to its files.
+## 🎮 Gameplay Modules
 
-QServ IRC not launching at all: set ircignore to 0, or you restarted the server too much or flooded IRC, try a different IRC server.
+### Teamplay
 
-segmentation fault: create a issue on this github page, you can also optionally debug the crash with lldb or gdb.
+- Heal teammates by shooting them
+- Pass flags to teammates by shooting them
+- Persistent teams option
+- Clan war mode
 
-Compile failures: you can attempt to compile enet/sqlite/geoip/zlib manually. The compilation is usually done by changing to the relevant directory and then running: "./configure; make"
+### Combat
 
-Missing libraries: sqlite/zlib/enet/geoip. You can install the libraries seperately and QServ will find them.
+- Killing spree messages
+- Longshot awards
+- Close-range kill awards
+- No-damage mode
 
-localhost failures: try using HTTP Geolocation with use_HTTP_geo 1 in server-init.cfg to fix these issues.
+### Server Experience
 
-MIT LICENSE 
-----------------
+- Welcome messages
+- Banner announcements
+- Custom bot names
+- Lag detection
+- Private mode toggle
+- Default gamemode selection
+- Default map selection
+- Administrator call system
+
+## 🗺️ Custom Maps & Content Delivery
+
+One of QServ's most unique features.
+
+- Instagib support on custom server maps
+- Server-stored maps
+- Automatic map downloading
+- Automatic lightmap delivery
+- Browser-controlled map management
+- Server-side content distribution
+
+Players can join a server and automatically receive custom maps directly from the server without requiring external downloads.
+
+## 🔧 Development Features
+
+- Modular command architecture
+- Server command builder
+- Easy custom command creation
+- C helper functions
+- C++ helper functions
+- Reloadable configuration system
+- Feature module support
+- Designed for long-term maintainability
+
+---
+
+# ⚡ Quick Setup
+
+## Windows
+
+1. Configure your server:
+
+```text
+config/server-init.cfg
+```
+
+2. Forward the following UDP ports to the internal IP address of your server host:
+
+```text
+28785
+28786
+```
+
+3. Start the server:
+
+```text
+qserv.exe
+```
+
+## Linux / macOS
+
+Configure:
+
+```text
+config/server-init.cfg
+```
+
+Run normally:
+
+```bash
+./qserv
+```
+
+Run in background:
+
+```bash
+nohup ./qserv &
+```
+
+Forward the following UDP ports to the internal IP address of your server host:
+
+```text
+28785
+28786
+```
+
+---
+
+# ⚙️ Configuration
+
+## Main Server Configuration
+
+```text
+config/server-init.cfg
+```
+
+Contains:
+
+- Server name
+- Passwords
+- Gameplay settings
+- IRC configuration
+- Geolocation settings
+- Module configuration
+- Default maps and gamemodes
+
+## Authentication Keys
+
+```text
+config/users.cfg
+```
+
+Contains administrator and authentication keys.
+
+## Linux/macOS Permissions
+
+Allow QServ to access its configuration files:
+
+```bash
+chmod -R 777 config
+```
+
+Optional map storage support:
+
+```bash
+mkdir -p packages/base
+chmod -R 777 packages
+```
+
+---
+
+# 🏗️ Building From Source
+
+If you want to modify commands, gameplay mechanics, server features, or contribute to development, you'll need to compile QServ from source.
+
+## macOS Requirements
+
+### Xcode
+
+Install Xcode from the App Store.
+
+### Command Line Tools
+
+```bash
+xcode-select --install
+```
+
+### CMake
+
+Download from:
+
+https://cmake.org/download/
+
+## Linux Requirements
+
+### Ubuntu / Debian
+
+```bash
+sudo apt-get install build-essential
+sudo apt-get install cmake
+sudo apt-get install zlib1g-dev
+sudo apt-get install libsqlite3-dev
+```
+
+## Unix Compilation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/deathstar/QServSqlite
+cd QServSqlite
+```
+
+Compile:
+
+```bash
+cmake .
+make
+```
+
+Run:
+
+```bash
+./qserv
+```
+
+Run in background:
+
+```bash
+nohup ./qserv &
+```
+
+View background log:
+
+```bash
+nano nohup.out
+```
+
+Stop the server:
+
+```bash
+CTRL+C
+```
+
+or:
+
+```bash
+kill PID
+```
+
+## Windows Compilation
+
+Install MSYS2:
+
+https://www.msys2.org/
+
+Update packages:
+
+```bash
+pacman -Syu
+```
+
+Install dependencies:
+
+```bash
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make git mingw-w64-x86_64-sqlite3
+```
+
+Clone:
+
+```bash
+git clone https://github.com/deathstar/QServSqlite
+```
+
+Build:
+
+```bash
+cmake .
+cmake --build .
+```
+
+The executable and source code will be located under:
+
+```text
+C:\msys64\home\<username>
+```
+
+---
+
+# ❓ Troubleshooting
+
+## LAN Server Info Socket Error
+
+```text
+WARNING: could not create LAN server info socket
+```
+
+The LAN info socket is only used for local network server visibility and does not affect internet players.
+
+If the server info socket fails, the port is likely blocked by a firewall.
+
+## Modern CMake Compatibility Error
+
+```text
+Compatibility with CMake < 3.5 has been removed
+```
+
+Use:
+
+```bash
+cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+```
+
+or update:
+
+```cmake
+cmake_minimum_required(VERSION 3.5)
+```
+
+## Geolocation Not Working
+
+Switch to GeoIP geolocation:
+
+```text
+usehttpgeolocation 0
+```
+
+Also verify file permissions:
+
+```bash
+chmod -R 777 qserv
+```
+
+## Flagruns Not Saving
+
+Ensure QServ can write to its files:
+
+```bash
+chmod -R 777 qserv
+```
+
+## IRC Bot Not Connecting
+
+Possible causes:
+
+- `ircignore` is enabled
+- IRC flood protection triggered
+- IRC server outage
+- Too many reconnect attempts
+
+Try a different IRC server.
+
+## Segmentation Fault
+
+Please create a GitHub issue and include:
+
+- Operating system
+- Crash logs
+- Steps to reproduce
+
+Optional debugging:
+
+```bash
+gdb ./qserv
+```
+
+or
+
+```bash
+lldb ./qserv
+```
+
+## Missing Libraries
+
+Common missing dependencies:
+
+- SQLite
+- Zlib
+- ENet
+- GeoIP
+
+Install them manually if automatic detection fails.
+
+## Localhost Geolocation Problems
+
+Enable HTTP geolocation:
+
+```text
+use_HTTP_geo 1
+```
+
+---
+
+# 📚 Documentation
+
+For information about:
+
+- Creating commands
+- Modifying gameplay
+- Extending QServ
+- Server administration
+- Feature development
+
+Visit the Wiki:
+
+https://github.com/deathstar/qserv2020/wiki
+
+---
+
+# 🤝 Contributing
+
+Contributions, bug reports, feature requests, pull requests, and documentation improvements are welcome.
+
+QServ has grown through community contributions over many years, and every improvement helps make the project better.
+
+---
+
+# 📧 Support
+
+For development questions, server support, or general inquiries:
+
+**George Scott**
+
+gscottmalibu@gmail.com
+
+---
+
+# 📜 License
+
+MIT License
 
 Copyright (c) 2026 George Scott, Stephen Caples, Jonlimle, Andrius4669, Eric Zeiger, Mihai Draghicioiu, BudSpencer, Zer0TraceX, Lorenzo Pistone
 
-Many people have helped work on QServ over the years and add a lot of features, as it has been around for a long time (17 years). A lot of the features were also taken from other Sauerbraten server mods and compiled into this one to create an extremely feature rich mod. Credit has been given to everyone that has made this project possible.
+QServ has evolved through more than 17 years of development and contributions from many members of the Cube 2: Sauerbraten community. Numerous features were inspired by or adapted from other Sauerbraten server projects and combined into a single feature-rich platform. Credit is given to everyone who helped make this project possible.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software.
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-the software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. in no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
-
-MORE HELP
----------------
-
-For info about modding, creating commands & more please view the Wiki: https://github.com/deathstar/qserv2020/wiki 
-
-If you still need help, you can email the main developer: gscottmalibu@gmail.com
-
-
-
-
-
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
