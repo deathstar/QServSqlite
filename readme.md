@@ -164,7 +164,12 @@ Configure:
 ```text
 config/server-init.cfg
 ```
+Forward the following UDP ports to the internal IP address of your server host:
 
+```text
+28785
+28786
+```
 Run normally:
 
 ```bash
@@ -175,13 +180,6 @@ Run in background:
 
 ```bash
 nohup ./qserv &
-```
-
-Forward the following UDP ports to the internal IP address of your server host:
-
-```text
-28785
-28786
 ```
 
 ---
@@ -357,7 +355,10 @@ WARNING: could not create LAN server info socket
 
 The LAN info socket is only used for local network server visibility and does not affect internet players.
 
-If the server info socket fails, the port is likely blocked by a firewall.
+If the server info socket fails, the port is likely blocked by a firewall. QServ utilizes the following ports:
+- 28784 for LAN server info socket (serverport-1)
+- 28785 for the server socket (serverport)
+- 28786 for master server keepalive pings (serverport+1)
 
 ## Modern CMake Compatibility Error
 
