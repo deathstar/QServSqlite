@@ -21,10 +21,27 @@ namespace server {
         m_olangcheck = olangcheck;
         m_maxolangwarns = maxolangwarns;
         m_cmdprefix = cmdprefix;
+        m_db = NULL;
         pthread_mutex_init(&qserv_mutex, NULL);
-    }
-    
-    QServ::~QServ() { ; }
+        }
+
+        QServ::~QServ() { 
+        if(m_db) sqlite3_close(m_db);
+        }
+
+        sqlite3 *QServ::getDB() {
+        pthread_mutex_lock(&qserv_mutex);
+        if(!m_db) {
+            if(sqlite3_open("playerinfo.db", &m_db) != SQLITE_OK) {
+                fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(m_db));
+                sqlite3_close(m_db);
+                m_db = NULL;
+            }
+        }
+        pthread_mutex_unlock(&qserv_mutex);
+        return m_db;
+        }
+
     
     bool QServ::initgeoip(const char *filename) {
         m_geoip = GeoIP_open(filename, GEOIP_STANDARD);
@@ -371,44 +388,6 @@ namespace server {
         printf("\n");
         return 0;
     }
-    
-    /*void getstats(clientinfo *ci)
-    {
-        sqlite3 *db;
-        sqlite3_stmt *stmt;
-        int rc;
-    
-        // Open database
-        rc = sqlite3_open("playerinfo.db", &db);
-        if (rc) {
-            fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
-            sqlite3_close(db);
-            return;
-        }
-    
-        // Prepare SQL (exact name match)
-        defformatstring(sqlstrprep)("SELECT NAME, FRAGS, DEATHS, FLAGS FROM PLAYERINFO WHERE NAME = '%s';", ci->name);
-    
-        rc = sqlite3_prepare_v2(db, sqlstrprep, -1, &stmt, NULL);
-        if (rc != SQLITE_OK) {
-            fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
-            sqlite3_close(db);
-            return;
-        }
-    
-        // Run query and echo stats if found
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char* name  = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-            const char* frags = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-            const char* deaths = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-            const char* flags = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-    
-            out(ECHO_ALL, "Name: \f2%s \f7Frags: \f0%s \f7Deaths: \f3%s \f7Flags: \f5%s", name, frags, deaths, flags);
-        }
-    
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-    }*/
     
     bool isPartOf(const char* w1, const char* w2) {
         int j = 0;
