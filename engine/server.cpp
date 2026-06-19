@@ -1220,8 +1220,8 @@ void initserver(bool listen, bool dedicated)
     }
 
     
-    if(!qs.initgeoip("./GeoIP/GeoIP.dat")) logoutf("[FATAL ERROR] Failed to load GeoIP database from GeoIP.dat file");
-    if(!qs.initcitygeoip("./GeoIP/GeoLiteCity.dat")) logoutf("[FATAL ERROR] Failed to load GeoLite database from GeoLiteCity.dat file");
+    if(!qs.initgeoip("GeoIP/GeoIP.dat")) logoutf("[FATAL ERROR] Failed to load GeoIP database from GeoIP.dat file");
+    if(!qs.initcitygeoip("GeoIP/GeoLiteCity.dat")) logoutf("[FATAL ERROR] Failed to load GeoLite database from GeoLiteCity.dat file");
     
     
     if(listen) setuplistenserver(dedicated);
