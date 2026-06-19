@@ -452,6 +452,17 @@ use_HTTP_geo 1
 
 ---
 
+# ⬆️ Upgrading
+
+To upgrade your existing QServ server, but keep your existing configuration:
+
+- Copy and back up your existing config folder and playerinfo.db file to a safe temporary location.
+- Delete your old QServSqlite folder.
+- Download and extract the new version of QServSqlite.
+- Move your backed-up config folder and playerinfo.db file into the new QServSqlite folder, overwriting the default files.
+
+---
+
 # 📚 Documentation
 
 For information about:
