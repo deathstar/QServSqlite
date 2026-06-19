@@ -10,6 +10,7 @@
 #include "../ircbot/ircbot.h"
 #include <iostream>
 #include <sstream>
+#include "../sqlite/sqlite3.h"
 
 
 const bool olanguagewarn = false;
@@ -117,7 +118,9 @@ namespace server {
             void checkMsg(int);
             int getMsgC(int);
             void resetMsg(int);
+            sqlite3 *getDB();
         protected:
+            sqlite3 *m_db;
             GeoIP *m_geoip;
             GeoIP *city_geoip;
             int m_lastcommand;
