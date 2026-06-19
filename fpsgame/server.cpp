@@ -744,11 +744,6 @@ namespace server {
         if(httpgeolocation) qs.enable_HTTP_geo = true;
         else if(!httpgeolocation) qs.enable_HTTP_geo = false;
     }
-    //Server deinitalizer
-    void serverclose()
-    {
-        _storeflagruns();
-    }
     
     int numclients(int exclude = -1, bool nospec = true, bool noai = true, bool priv = false)
     {
@@ -1995,7 +1990,7 @@ namespace server {
     }
     void loadstats(clientinfo *ci)
     {
-        if(!ci) return;
+    	if(!ci || ci->state.aitype != AI_NONE) return;
     
         char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
@@ -2030,7 +2025,7 @@ namespace server {
     
    void sendplayerstats(clientinfo *ci)
     {
-        if(!ci) return;
+        if(!ci || ci->state.aitype != AI_NONE) return;
         if(!ci->name[0]) return;
 
         char key[64];
@@ -2930,23 +2925,26 @@ best.add(clients[i]); \
 		
     void savestats(clientinfo *ci)
     {
-        if(!ci) return;  
-        if(!ci->name[0]) return;
-    
-        if(!ci->stats_loaded) loadstats(ci);
-    
-        char key[64];
-        make_name_key_utf8(ci->name, key, sizeof(key));
-    
-        int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
-        int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
-        int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
-    
-        int total_frags  = ci->db_frags  + s_frags;
-        int total_deaths = ci->db_deaths + s_deaths;
-        int total_flags  = ci->db_flags  + s_flags;
-    
-        double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
+		if(!ci || ci->state.aitype != AI_NONE) return;
+		if(!ci->name[0]) return;
+
+
+		int db_f = ci->stats_loaded ? ci->db_frags  : 0;
+		int db_d = ci->stats_loaded ? ci->db_deaths : 0;
+		int db_g = ci->stats_loaded ? ci->db_flags  : 0;
+		
+		char key[64];
+		make_name_key_utf8(ci->name, key, sizeof(key));
+		
+		int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
+		int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
+		int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
+		
+		int total_frags  = db_f + s_frags;
+		int total_deaths = db_d + s_deaths;
+		int total_flags  = db_g + s_flags;
+		
+		double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
     
         sqlite3 *db = qs.getDB();
         if(!db) return;
@@ -2977,14 +2975,14 @@ best.add(clients[i]); \
     
         int rc = sqlite3_step(stmt);
     
-        if(rc == SQLITE_DONE)
-        {
-            // Update session baseline to match DB
-            ci->db_frags  = total_frags;
-            ci->db_deaths = total_deaths;
-            ci->db_flags  = total_flags;
-            ci->stats_saved_this_session = true;
-        }
+		if(rc == SQLITE_DONE)
+    	{
+        	ci->db_frags  = total_frags;
+        	ci->db_deaths = total_deaths;
+        	ci->db_flags  = total_flags;
+        	ci->stats_loaded = true; // Mark loaded since it's now synced with DB
+        	ci->stats_saved_this_session = true;
+    	}
         else
             fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
     
@@ -3570,11 +3568,11 @@ best.add(clients[i]); \
            loopv(clients) if(clients[i]->authkickvictim == ci->clientnum) clients[i]->cleanauth();
            if(ci->connected)
            {
+           	   savestats(ci);
                if(ci->privilege && !ci->isInvAdmin) setmaster(ci, false);
                if(smode) smode->leavegame(ci, true);
                ci->state.timeplayed += lastmillis - ci->state.lasttimeplayed;
                savescore(ci);
-               savestats(ci);
                sendf(-1, 1, "ri2", N_CDIS, n);
                clients.removeobj(ci);
                aiman::removeai(ci);
@@ -4893,6 +4891,24 @@ best.add(clients[i]); \
     {
         return attr.length() && attr[0]==PROTOCOL_VERSION;
     }
+    
+    void serverclose()
+        {
+            loopv(clients)
+            {
+                if(clients[i] && clients[i]->state.aitype == AI_NONE)
+                {
+                    savestats(clients[i]);
+                }
+            }
+            _storeflagruns();
+            loopv(_flagruns)
+            {
+                DELETEA(_flagruns[i].map);
+                DELETEA(_flagruns[i].name);
+            }
+            _flagruns.shrink(0);   
+        }
     
 #include "aiman.h"
 }
