@@ -2000,12 +2000,8 @@ namespace server {
         char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
     
-        sqlite3 *db = nullptr;
-        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
-        {
-            if(db) sqlite3_close(db);
-            return;
-        }
+        sqlite3 *db = qs.getDB();
+        if(!db) return;
     
         ensure_stats_table(db);
     
@@ -2029,8 +2025,6 @@ namespace server {
         }
     
         if(stmt) sqlite3_finalize(stmt);
-        sqlite3_close(db);
-    
         ci->stats_loaded = true;
     }
     
@@ -2042,21 +2036,15 @@ namespace server {
         char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
     
-        sqlite3 *db = nullptr;
-        sqlite3_stmt *stmt = nullptr;
-    
-        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
-        {
-            if(db) sqlite3_close(db);
-            return;
-        }
+        sqlite3 *db = qs.getDB();
+        if(!db) return;
     
         ensure_stats_table(db);
     
         const char *sql = "SELECT FRAGS, DEATHS, FLAGS, KD FROM PLAYERINFO WHERE NAME=?;";
+        sqlite3_stmt *stmt = nullptr;
         if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
         {
-            sqlite3_close(db);
             return;
         }
     
@@ -2082,7 +2070,6 @@ namespace server {
         }
     
         sqlite3_finalize(stmt);
-        sqlite3_close(db);
     }
     
     void sendinitclient(clientinfo *ci)
@@ -2945,8 +2932,6 @@ best.add(clients[i]); \
     {
         if(!ci) return;  
         if(!ci->name[0]) return;
-        if(ci->stats_saved_this_session) return;
-		ci->stats_saved_this_session = true;
     
         if(!ci->stats_loaded) loadstats(ci);
     
@@ -2963,12 +2948,8 @@ best.add(clients[i]); \
     
         double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
     
-        sqlite3 *db = nullptr;
-        if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK)
-        {
-            if(db) sqlite3_close(db);
-            return;
-        }
+        sqlite3 *db = qs.getDB();
+        if(!db) return;
     
         ensure_stats_table(db);
     
@@ -2985,7 +2966,6 @@ best.add(clients[i]); \
         if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
         {
             fprintf(stderr, "SQL ERROR (prepare): %s\n", sqlite3_errmsg(db));
-            sqlite3_close(db);
             return;
         }
     
@@ -2996,19 +2976,19 @@ best.add(clients[i]); \
         sqlite3_bind_double(stmt, 5, kd);
     
         int rc = sqlite3_step(stmt);
-
-		if(rc == SQLITE_DONE)
-		{
-    		// advance baseline so next map adds onto lifetime correctly
-    		ci->db_frags  = total_frags;
-    		ci->db_deaths = total_deaths;
-    		ci->db_flags  = total_flags;
-		}
-        if(rc != SQLITE_DONE)
+    
+        if(rc == SQLITE_DONE)
+        {
+            // Update session baseline to match DB
+            ci->db_frags  = total_frags;
+            ci->db_deaths = total_deaths;
+            ci->db_flags  = total_flags;
+            ci->stats_saved_this_session = true;
+        }
+        else
             fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
     
         sqlite3_finalize(stmt);
-        sqlite3_close(db);
     }
     
     void startintermission() {
