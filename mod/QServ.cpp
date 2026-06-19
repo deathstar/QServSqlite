@@ -37,6 +37,10 @@ namespace server {
                 sqlite3_close(m_db);
                 m_db = NULL;
             }
+            else {
+            	//set timeout to prevent race condition on simultaneous connections
+            	sqlite3_busy_timeout(m_db, 1000); 
+        	}
         }
         pthread_mutex_unlock(&qserv_mutex);
         return m_db;
