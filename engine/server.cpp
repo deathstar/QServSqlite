@@ -723,6 +723,43 @@ void updatetime()
     }
 }
 
+static void dispatch_enet_event(ENetEvent &event)
+{
+    switch(event.type)
+    {
+        case ENET_EVENT_TYPE_CONNECT:
+        {
+            client &c = addclient(ST_TCPIP);
+            c.peer = event.peer;
+            c.peer->data = &c;
+            string hn;
+            copystring(c.hostname, (enet_address_get_host_ip(&c.peer->address, hn, sizeof(hn))==0) ? hn : "unknown");
+            logoutf("client connected (%s)", c.hostname);
+            int reason = server::clientconnect(c.num, c.peer->address.host, c.hostname); //c.hostname passes IP for QServ
+            if(reason) disconnect_client(c.num, reason);
+            break;
+        }
+        case ENET_EVENT_TYPE_RECEIVE:
+        {
+            client *c = (client *)event.peer->data;
+            if(c) process(event.packet, c->num, event.channelID);
+            if(event.packet->referenceCount==0) enet_packet_destroy(event.packet);
+            break;
+        }
+        case ENET_EVENT_TYPE_DISCONNECT:
+        {
+            client *c = (client *)event.peer->data;
+            if(!c) break;
+            logoutf("disconnected client (%s)", c->hostname);
+            server::clientdisconnect(c->num);
+            delclient(c);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void serverslice(bool dedicated, uint timeout)   // main server update, called from main loop in sp, or from below in dedicated server
 {
     if(!serverhost)
@@ -763,46 +800,16 @@ void serverslice(bool dedicated, uint timeout)   // main server update, called f
     }
 
     ENetEvent event;
-    bool serviced = false;
-    while(!serviced)
+    while(enet_host_check_events(serverhost, &event) > 0)
     {
-        if(enet_host_check_events(serverhost, &event) <= 0)
+        dispatch_enet_event(event);
+    }
+    if(enet_host_service(serverhost, &event, timeout) > 0)
+    {
+        dispatch_enet_event(event);
+        while(enet_host_check_events(serverhost, &event) > 0)
         {
-            if(enet_host_service(serverhost, &event, timeout) <= 0) break;
-            serviced = true;
-        }
-        switch(event.type)
-        {
-            case ENET_EVENT_TYPE_CONNECT:
-            {
-                client &c = addclient(ST_TCPIP);
-                c.peer = event.peer;
-                c.peer->data = &c;
-                string hn;
-                copystring(c.hostname, (enet_address_get_host_ip(&c.peer->address, hn, sizeof(hn))==0) ? hn : "unknown");
-                logoutf("client connected (%s)", c.hostname);
-                int reason = server::clientconnect(c.num, c.peer->address.host, c.hostname); //c.hostname passes IP for QServ
-                if(reason) disconnect_client(c.num, reason);
-                break;
-            }
-            case ENET_EVENT_TYPE_RECEIVE:
-            {
-                client *c = (client *)event.peer->data;
-                if(c) process(event.packet, c->num, event.channelID);
-                if(event.packet->referenceCount==0) enet_packet_destroy(event.packet);
-                break;
-            }
-            case ENET_EVENT_TYPE_DISCONNECT:
-            {
-                client *c = (client *)event.peer->data;
-                if(!c) break;
-                logoutf("disconnected client (%s)", c->hostname);
-                server::clientdisconnect(c->num);
-                delclient(c);
-                break;
-            }
-            default:
-                break;
+            dispatch_enet_event(event);
         }
     }
     if(server::sendpackets()) enet_host_flush(serverhost);
