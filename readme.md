@@ -383,7 +383,7 @@ cmake_minimum_required(VERSION 3.5)
 Switch to GeoIP geolocation:
 
 ```text
-usehttpgeolocation 0
+httpgeolocation 0
 ```
 
 Also verify file permissions:
