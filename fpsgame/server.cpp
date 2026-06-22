@@ -141,6 +141,7 @@ namespace server {
     }
     
     VAR(serverflagruns, 0, 0, 1); //enable/disable flagrun message/storage
+	VAR(banflagrunhackers, 0, 0, 1); //enable/disable flagrun message/storage
     struct _flagrun
     {
         char *map;
@@ -154,7 +155,15 @@ namespace server {
     {
         if(timeused <= 500)
         {
-            out(ECHO_SERV, "\f0%s \f7scored a \f6MEGARUN!", colorname(ci));
+            out(ECHO_SERV, "\f0%s \f7is \f3speedhacking\f7. Good riddance.", colorname(ci));
+            if(banflagrunhackers) {
+                uint ip = getclientip(ci->clientnum);
+                addban(ip, 0);
+                disconnect_client(ci->clientnum, DISC_KICK);
+            }
+            else {
+                disconnect_client(ci->clientnum, DISC_KICK);
+            }
             return;
         }
         if(serverflagruns)
