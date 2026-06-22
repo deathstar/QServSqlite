@@ -71,17 +71,13 @@ extern ENetAddress masteraddress;
 
 VAR(regenbluearmour, 0, 1, 1);
 
-//Main server namespace
 namespace server {
-    
-    //should be const char name
     bool duplicatename(clientinfo *ci, char *name) {
         if(!name) name = ci->name;
         loopv(clients) if(clients[i]!=ci && !strcmp(name, clients[i]->name)) return true;
         return false;
     }
     
-    //should be const char name
     const char *colorname(clientinfo *ci) {
         char *name = NULL;
         if(!name) name = ci->name;
@@ -689,7 +685,6 @@ namespace server {
         ments.setsize(0);
         sents.setsize(0);
         //cps.reset();
-        
     }
     
     bool serveroption(const char *arg)
@@ -728,7 +723,7 @@ namespace server {
             if(textcmd(b, text+a-1)) bad=true;
         }
         if(bad){
-            int n = randomMT() % 7 + 0; //replaced rand with threadsafe randomMT
+            int n = randomMT() % 7 + 0; 
             defformatstring(d)("\f%i%s \f0%s!", n, sweartext, ci->name);
             sendservmsg(d);
             bad=false;
@@ -736,7 +731,7 @@ namespace server {
     }
     
     extern void changemap(const char *s, int mode);
-    //Server initalizer
+
     void serverinit()
     {
         smapname[0] = '\0';
@@ -844,8 +839,9 @@ namespace server {
                 return false;
         }
     }
-    
-    bool pickup(int i, int sender)         // server side item pickup, acknowledge first client that gets it
+
+	// server side item pickup, acknowledge first client that gets it
+    bool pickup(int i, int sender) 
     {
         if((m_timed && gamemillis>=gamelimit) || !sents.inrange(i) || !sents[i].spawned) return false;
         clientinfo *ci = getinfo(sender);
@@ -1945,14 +1941,7 @@ namespace server {
         gs.armour, gs.armourtype,
         gs.gunselect, GUN_PISTOL-GUN_SG+1, &gs.ammo[GUN_SG], -1);
     }
-    
-    /*extern void checkvotes(bool force=false);
-     extern void loaditems();
-     extern void changemap(const char *s, int mode);
-     extern void rotatemap(bool);
-     extern void forcemap(const char *map, int mode);
-     extern void vote(const char *map, int reqmode, int sender);
-     */
+		
     static void make_name_key_utf8(const char *in, char *out, int outlen)
     {
         if(!in || outlen <= 0) { if(outlen > 0) out[0] = '\0'; return; }
@@ -3522,16 +3511,6 @@ best.add(clients[i]); \
     
    #include <string>
     
-    // Simple SQL escape: doubles single quotes
-    static std::string escape_sql(const char* str) {
-        std::string ret;
-        for (; *str; str++) {
-            if (*str == '\'') ret += "''";
-            else ret += *str;
-        }
-        return ret;
-    }
-    
 	int clientconnect(int n, uint ip, char *ipstr)
     {
     	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
@@ -3677,8 +3656,7 @@ best.add(clients[i]); \
         if(bannedips.inrange(banid) && banid >= 0)
         {
             bannedips.remove(banid);
-            sendf(sender, 1, "ris", N_SERVMSG, "Ban removed");
-            //banid = banid+banid++; //I was high?
+            sendf(sender, 1, "ris", N_SERVMSG, "Ban removed. Ban IDs have changed, use #listbans if unbanning another client.");
         }
         else if(banid < 0) {
             bannedips.shrink(0);
@@ -4390,8 +4368,7 @@ best.add(clients[i]); \
                 notgotitems = false;
                 break;
             }
-                
-            
+    
             /*
             Causes message error
             case N_EDITF:       //maptitle, fpush
