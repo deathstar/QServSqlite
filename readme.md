@@ -267,6 +267,8 @@ To upgrade your existing QServ server, but keep your existing configuration:
 - Download and extract the new version of QServSqlite.
 - Move your backed-up config folder and playerinfo.db file into the new QServSqlite folder, overwriting the default files.
 
+---
+
 # 🏗️ Building From Source
 
 If you want to modify commands, gameplay mechanics, server features, or contribute to development, you'll need to compile QServ from source.
