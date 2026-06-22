@@ -141,7 +141,7 @@ namespace server {
     }
     
     VAR(serverflagruns, 0, 0, 1); //enable/disable flagrun message/storage
-	VAR(banflagrunhackers, 0, 0, 1); //enable/disable flagrun message/storage
+	VAR(banflagrunhackers, 0, 0, 1); //autoban flagrunners that score in <500ms 
     struct _flagrun
     {
         char *map;
