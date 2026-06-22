@@ -128,7 +128,7 @@ if __name__ == '__main__':
     updater_thread.start()
     
     server = HTTPServer(('0.0.0.0', PORT), FastDBHandler)
-    print(f"🌐 Optimized Server is up and listening on port {PORT}...")
+    print(f"🌐 QServ Stats Webserver is up and listening on port {PORT}...")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
