@@ -24,6 +24,7 @@ Whether you're running a public server, competitive clan server, private communi
 ## Why QServ?
 
 - Persistent SQLite-backed player statistics
+- Player stat and ranking webserver
 - Browser-based administration
 - Mobile phone administration through IRC
 - Automatic custom map distribution
