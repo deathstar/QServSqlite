@@ -484,14 +484,6 @@ Common missing dependencies:
 
 Install them manually if automatic detection fails.
 
-## Localhost Geolocation Problems
-
-Enable HTTP geolocation:
-
-```text
-use_HTTP_geo 1
-```
-
 ---
 
 # 📚 Documentation
