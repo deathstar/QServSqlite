@@ -228,6 +228,45 @@ chmod -R 777 packages
 
 ---
 
+# 🌐 Statistics and Player Ranking Webserver
+
+To host a website that displays player statistics from the server and ranks them, you can use the included webserver.
+
+Install python:
+  
+```text
+sudo apt install python3 python3-pip -y
+```
+
+Forward port using TCP to the internal IP of the QServ host server:
+  
+```text
+8080
+```
+
+Start the webserver:
+
+```text
+nohup python stats-webserver.py &
+```
+
+Visit your website:
+
+```text
+http://YourExternalIPAddress:8080
+```
+
+---
+
+# ⬆️ Upgrading
+
+To upgrade your existing QServ server, but keep your existing configuration:
+
+- Copy and back up your existing config folder and playerinfo.db file to a safe temporary location.
+- Delete your old QServSqlite folder.
+- Download and extract the new version of QServSqlite.
+- Move your backed-up config folder and playerinfo.db file into the new QServSqlite folder, overwriting the default files.
+
 # 🏗️ Building From Source
 
 If you want to modify commands, gameplay mechanics, server features, or contribute to development, you'll need to compile QServ from source.
@@ -450,17 +489,6 @@ Enable HTTP geolocation:
 ```text
 use_HTTP_geo 1
 ```
-
----
-
-# ⬆️ Upgrading
-
-To upgrade your existing QServ server, but keep your existing configuration:
-
-- Copy and back up your existing config folder and playerinfo.db file to a safe temporary location.
-- Delete your old QServSqlite folder.
-- Download and extract the new version of QServSqlite.
-- Move your backed-up config folder and playerinfo.db file into the new QServSqlite folder, overwriting the default files.
 
 ---
 
