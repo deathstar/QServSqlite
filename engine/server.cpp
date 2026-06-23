@@ -995,15 +995,20 @@ static LRESULT CALLBACK handlemessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 static void setupwindow(const char *title, const char *path)
 {
     copystring(apptip, title);
+	
+    appinstance = GetModuleHandle(path && *path ? path : NULL);
+    if(!appinstance) fatal("failed getting application instance");
     
-    appinstance = GetModuleHandle(path);
-    //if(!appinstance) fatal("failed getting application instance");
+    // Try loading custom application icon; fallback cleanly to system default if not found
     appicon = LoadIcon(appinstance, MAKEINTRESOURCE(IDI_ICON1));
-    (HICON)LoadImage(appinstance, MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE);
-    //if(!appicon) fatal("failed loading icon");
+    if(!appicon) 
+    {
+        appicon = LoadIcon(NULL, IDI_APPLICATION); 
+    }
     
     appmenu = CreatePopupMenu();
-    //if(!appmenu) fatal("failed creating popup menu");
+    if(!appmenu) fatal("failed creating QServ popup menu");
+    
     AppendMenu(appmenu, MF_STRING, MENU_OPENCONSOLE, "Open Console");
     AppendMenu(appmenu, MF_SEPARATOR, 0, NULL);
     AppendMenu(appmenu, MF_STRING, MENU_EXIT, "Exit");
@@ -1011,11 +1016,9 @@ static void setupwindow(const char *title, const char *path)
     
     WNDCLASS wc;
     memset(&wc, 0, sizeof(wc));
-    wc.hCursor = NULL;
-    LoadCursor(NULL, IDC_ARROW);
     
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.hIcon = appicon;
-    wc.hIcon = LoadIcon(0, IDI_EXCLAMATION);
     wc.lpszMenuName = NULL;
     wc.lpszClassName = title;
     wc.style = 0;
@@ -1023,15 +1026,20 @@ static void setupwindow(const char *title, const char *path)
     wc.lpfnWndProc = handlemessages;
     wc.cbWndExtra = 0;
     wc.cbClsExtra = 0;
-    wndclass = RegisterClass(&wc);
-    //if(!wndclass) fatal("failed registering window class");
     
-    appwindow = CreateWindow(MAKEINTATOM(wndclass), title, 0, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, HWND_MESSAGE, NULL, appinstance, NULL);
-    //if(!appwindow) fatal("failed creating window");
+    wndclass = RegisterClass(&wc);
+    if(!wndclass) fatal("failed registering window class");
+    
+    // Create an isolated message-only window for background system tray events
+    appwindow = CreateWindow(MAKEINTATOM(wndclass), title, 0, 
+                             CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, 
+                             HWND_MESSAGE, NULL, appinstance, NULL);
+    if(!appwindow) fatal("failed creating window for QServ");
     
     atexit(cleanupwindow);
     
-    //if(!setupsystemtray(WM_APP)) fatal("failed adding to system tray");
+    // Stand up the system tray interaction context safely
+    if(!setupsystemtray(WM_APP)) fatal("failed adding QServ to system tray");
 }
 
 static char *parsecommandline(const char *src, vector<char *> &args)
@@ -1145,10 +1153,8 @@ bool setuplistenserver(bool dedicated)
     serverhost = enet_host_create(&address, min(maxclients + server::reserveclients(), MAXCLIENTS), server::numchannels(), 0, serveruprate);
     if(!serverhost) return servererror(dedicated, "could not create server host");
     
-    // Set your duplicate clients restriction
     serverhost->duplicatePeers = maxdupclients ? maxdupclients : MAXCLIENTS;
     
-    // 2. Initialize the Server Info (Pong) Socket for Master Server pings
     address.port = server::serverinfoport(serverport > 0 ? serverport : -1);
     pongsock = enet_socket_create(ENET_SOCKET_TYPE_DATAGRAM);
     if(pongsock != ENET_SOCKET_NULL && enet_socket_bind(pongsock, &address) < 0)
@@ -1165,7 +1171,7 @@ bool setuplistenserver(bool dedicated)
     // Default to the vanilla LAN port (28784)
     int target_lan_port = server::laninfoport(); 
 
-    // LAN port congested by another server
+    // Try opening to the wider local network first; fall back to localhost if blocked/congested
     for(int attempt = 0; attempt < 2; attempt++)
     {
         memset(&lanaddress, 0, sizeof(ENetAddress));
@@ -1177,7 +1183,7 @@ bool setuplistenserver(bool dedicated)
         }
         else
         {
-            // First pass: open to local network. Second pass: fallback to safe localhost
+            // Pass 0: Listen on all network interfaces. Pass 1: Fallback strictly to localhost loopback.
             if(attempt == 0) lanaddress.host = ENET_HOST_ANY;
             else enet_address_set_host(&lanaddress, "127.0.0.1");
         }
@@ -1199,12 +1205,11 @@ bool setuplistenserver(bool dedicated)
             lansock = ENET_SOCKET_NULL;
         }
 
-        // SAFETY ISOLATION: Shift to +2 offset to completely avoid breaking 
-        // the master server's ping requirements on pongsock (serverport + 1)
+		// FALLBACK ESCALATION: Shift port by +2 to avoid master server ping requirements 
+    	// on pongsock (serverport + 1), preparing for isolated localhost bind.
         target_lan_port = (serverport <= 0 ? server::serverport() : serverport) + 2;
     }
     
-    // Log a clean notice instead of a scary error if LAN visibility is restricted
     if(!lan_bound || lansock == ENET_SOCKET_NULL) 
     {
         conoutf(CON_WARN, "NOTICE: LAN discovery service restricted to local machine link.");
@@ -1280,13 +1285,12 @@ int main(int argc, char **argv) {
 #endif
 
     srand(time(NULL));
-	
-    qs.initCommands(server::initCmds);
     setlogfile(NULL);
-
+	
+	qs.initCommands(server::initCmds);
+	
     if (enet_initialize() < 0)
         fatal("[FATAL ERROR]: Unable to initialise network module");
-
     atexit(enet_deinitialize);
     enet_time_set(0);
 
@@ -1296,7 +1300,6 @@ int main(int argc, char **argv) {
 
     execfile("./config/server-init.cfg", false);
     game::parseoptions(gameargs);
-
 
     printf("[QServ] Server starting on port %d\n", serverport);
 
