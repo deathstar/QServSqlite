@@ -1,7 +1,3 @@
-# A simple python webserver that displays stats and ranks players from your servers saved statistics database
-# To utilize the script, install python, run: nohup python stats-webserver.py & and then forward port 8080 using TCP
-# Anyone can see your webpage with saved statistics from http://yourIP:8080. You can use tinyurl.com to hide the IP
-
 import sqlite3
 import os
 import threading
@@ -12,12 +8,13 @@ PORT = 8080
 DB_FILE = 'playerinfo.db'
 CACHE_REFRESH_INTERVAL = 60 # Refresh stats every 60 seconds
 
-cached_html = "<h3>Leaderboard is initializing... Please refresh in a moment.</h3>"
+# Keep the cache strictly as raw, ready-to-ship network bytes from the start
+cached_html_bytes = b"<h3>Leaderboard is initializing... Please refresh in a moment.</h3>"
 cache_lock = threading.Lock()
 
 def update_leaderboard_cache():
     """Background worker that continuously updates the cached HTML."""
-    global cached_html
+    global cached_html_bytes
     while True:
         if os.path.exists(DB_FILE):
             try:
@@ -41,17 +38,20 @@ def update_leaderboard_cache():
                     rows.append((name, row[1], row[2], row[3], row[4]))
                 
                 # Generate the static HTML block
-                new_html = build_html_layout(rows)
+                new_html_str = build_html_layout(rows)
                 
-                # Thread-safe swap of the global cache
+                # Thread-safe swap of the global cache, baked natively into raw bytes
                 with cache_lock:
-                    cached_html = new_html
+                    cached_html_bytes = new_html_str.encode('utf-8')
                     
             except Exception as e:
-                print(f"Cache update error: {e}")
+                error_msg = f"<h3>Cache update error: {e}</h3>"
+                with cache_lock:
+                    cached_html_bytes = error_msg.encode('utf-8')
         else:
+            error_msg = f"<h3>Error: {DB_FILE} not found. Ensure this script is running in your QServ directory.</h3>"
             with cache_lock:
-                cached_html = f"<h3>Error: {DB_FILE} not found. Ensure this script is running in your QServ directory.</h3>"
+                cached_html_bytes = error_msg.encode('utf-8')
                 
         time.sleep(CACHE_REFRESH_INTERVAL)
 
@@ -110,20 +110,18 @@ class FastDBHandler(SimpleHTTPRequestHandler):
         if self.path == '/' or self.path == '/index.html':
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
-            # Tells Apache and the client's browser to cache this page for 30 seconds max
             self.send_header('Cache-Control', 'public, max-age=30')
             self.end_headers()
             
-            # Serve the pre-compiled HTML instantly out of RAM
+            # Instantly slice the memory stream to the client without translating formats
             with cache_lock:
-                response_data = cached_html
+                response_data = cached_html_bytes
                 
-            self.wfile.write(response_data.encode('utf-8'))
+            self.wfile.write(response_data)
         else:
             self.send_error(404, "File Not Found")
 
 if __name__ == '__main__':
-    # Start the background thread to keep the database reads independent of web traffic
     updater_thread = threading.Thread(target=update_leaderboard_cache, daemon=True)
     updater_thread.start()
     
