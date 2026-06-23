@@ -105,7 +105,7 @@ namespace server {
     VAR(nodamage, 0, 0, 1);                          //no damage for anyone
     VAR(autosendmap, 0, 1, 1);                       //automatically sends map in edit mode
     VAR(instacoop, 0, 0, 1);                         //insta like characteristics of edit mode
-    VAR(instacoop_gamelimit, 1000, 600000, 9999999); //time limit for instacoop games
+    VAR(instacoop_gamelimit, 1000, 600000, INT_MAX); //time limit for instacoop games
     VAR(enable_passflag, 0, 1, 1);                   //enables pass the flag in ctf modes
     VAR(no_single_private, 0, 0, 1);                 //no single user can set mastermode private (requires at least 2 clients/admins are exempt)
     VAR(enablemultiplemasters, 0, 0, 1);             //enables /setmaster 1 for multiple clients (stops need for #sendprivs or givemaster)
