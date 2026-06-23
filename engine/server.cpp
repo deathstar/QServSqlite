@@ -1238,7 +1238,9 @@ void initserver(bool listen, bool dedicated)
                setupwindow("QServ", "");
         #endif
     }
-
+	
+	// reserve memory for clients: pointer stability, latency elimination, cpu optimization
+	clients.reserve(MAXCLIENTS);
     
     if(!qs.initgeoip("GeoIP/GeoIP.dat")) logoutf("[FATAL ERROR] Failed to load GeoIP database from GeoIP.dat file");
     if(!qs.initcitygeoip("GeoIP/GeoLiteCity.dat")) logoutf("[FATAL ERROR] Failed to load GeoLite database from GeoLiteCity.dat file");
