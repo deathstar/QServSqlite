@@ -73,45 +73,7 @@ void out(int type, const char *fmt, ...)
 
 namespace server {
 
-    bool duplicatename(clientinfo *ci, char *name) {
-        if(!name) name = ci->name;
-        loopv(clients) if(clients[i]!=ci && !strcmp(name, clients[i]->name)) return true;
-        return false;
-    }
-    
-    const char *colorname(clientinfo *ci) {
-        char *name = NULL;
-        if(!name) name = ci->name;
-        if(name[0] && !duplicatename(ci, name) && ci->state.aitype == AI_NONE) return name;
-        static string cname[3];
-        static int cidx = 0;
-        cidx = (cidx+1)%3;
-        formatstring(cname[cidx])(ci->state.aitype == AI_NONE ? "%s \fs\f5(%d)\fr" : "%s \fs\f5[%d]\fr", name, ci->clientnum);
-        return cname[cidx];
-    }
-    
-    vector<uint> allowedips;
-    vector<ban> bannedips;
-    
-    void clearbans() {
-        bannedips.shrink(0);
-        out(ECHO_SERV, "Server bans \f0cleared");
-        out(ECHO_CONSOLE, "Server bans cleared");
-        out(ECHO_IRC, "All bans cleared");
-    }
-    
-    void addban(uint ip, int expire)
-    {
-        allowedips.removeobj(ip);
-        ban b;
-        b.time = totalmillis;
-        b.expire = totalmillis + expire;
-        b.ip = ip;
-        loopv(bannedips) if(b.expire < bannedips[i].expire) { bannedips.insert(i, b); return; }
-        bannedips.add(b);
-    }
-
-    SVAR(serverdesc, "");
+	SVAR(serverdesc, "");
     SVAR(serverpass, "");
     SVAR(adminpass, "");
     SVAR(servermotd, "");
@@ -174,6 +136,44 @@ namespace server {
     stream *mapdata = NULL;
     
     vector<clientinfo *> connects, clients, bots;
+
+    bool duplicatename(clientinfo *ci, char *name) {
+        if(!name) name = ci->name;
+        loopv(clients) if(clients[i]!=ci && !strcmp(name, clients[i]->name)) return true;
+        return false;
+    }
+    
+    const char *colorname(clientinfo *ci) {
+        char *name = NULL;
+        if(!name) name = ci->name;
+        if(name[0] && !duplicatename(ci, name) && ci->state.aitype == AI_NONE) return name;
+        static string cname[3];
+        static int cidx = 0;
+        cidx = (cidx+1)%3;
+        formatstring(cname[cidx])(ci->state.aitype == AI_NONE ? "%s \fs\f5(%d)\fr" : "%s \fs\f5[%d]\fr", name, ci->clientnum);
+        return cname[cidx];
+    }
+    
+    vector<uint> allowedips;
+    vector<ban> bannedips;
+    
+    void clearbans() {
+        bannedips.shrink(0);
+        out(ECHO_SERV, "Server bans \f0cleared");
+        out(ECHO_CONSOLE, "Server bans cleared");
+        out(ECHO_IRC, "All bans cleared");
+    }
+    
+    void addban(uint ip, int expire)
+    {
+        allowedips.removeobj(ip);
+        ban b;
+        b.time = totalmillis;
+        b.expire = totalmillis + expire;
+        b.ip = ip;
+        loopv(bannedips) if(b.expire < bannedips[i].expire) { bannedips.insert(i, b); return; }
+        bannedips.add(b);
+    }
     
     void kickclients(uint ip, clientinfo *actor = NULL)
     {
