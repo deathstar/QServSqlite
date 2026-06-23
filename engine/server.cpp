@@ -121,8 +121,8 @@ void putint(vector<uchar> &p, int n) { putint_(p, n); }
 int getint(ucharbuf &p)
 {
     int c = (char)p.get();
-    if(c==-128) { int n = p.get(); n |= char(p.get())<<8; return n; }
-    else if(c==-127) { int n = p.get(); n |= p.get()<<8; n |= p.get()<<16; return n|(p.get()<<24); }
+	if(c==-128) { int n = p.get(); n |= p.get()<<8; return (short)n; } 
+    else if(c==-127) { int n = p.get(); n |= p.get()<<8; n |= p.get()<<16; return n|((int)(unsigned)p.get()<<24); } 
     else return c;
 }
 
@@ -799,18 +799,18 @@ void serverslice(bool dedicated, uint timeout)   // main server update, called f
         serverhost->totalSentData = serverhost->totalReceivedData = 0;
     }
 
+    if(server::sendpackets()) enet_host_flush(serverhost);
+    
     ENetEvent event;
-    while(enet_host_check_events(serverhost, &event) > 0)
+    bool serviced = false;
+    while(!serviced)
     {
-        dispatch_enet_event(event);
-    }
-    if(enet_host_service(serverhost, &event, timeout) > 0)
-    {
-        dispatch_enet_event(event);
-        while(enet_host_check_events(serverhost, &event) > 0)
+        if(enet_host_check_events(serverhost, &event) <= 0)
         {
-            dispatch_enet_event(event);
+            if(enet_host_service(serverhost, &event, timeout) <= 0) break;
+            serviced = true;
         }
+		dispatch_enet_event(event);
     }
     if(server::sendpackets()) enet_host_flush(serverhost);
 }
