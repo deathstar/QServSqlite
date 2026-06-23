@@ -10,6 +10,10 @@
 #include "../ircbot/ircbot.h"
 #include <iostream>
 #include <sstream>
+
+#ifdef SQLITE_STATIC
+#  undef SQLITE_STATIC
+#endif
 #include "../sqlite/sqlite3.h"
 
 
