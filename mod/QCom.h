@@ -22,7 +22,6 @@ namespace server {
     extern QSERV_CALLBACK localtime_cmd(p);
     extern QSERV_CALLBACK time_cmd(p);
     extern QSERV_CALLBACK bunny_cmd(p);
-    extern QSERV_CALLBACK owords_cmd(p);
     extern QSERV_CALLBACK olangfilter_cmd(p);
     extern QSERV_CALLBACK echo_cmd(p);
     extern QSERV_CALLBACK revokepriv_cmd(p);
@@ -65,6 +64,7 @@ namespace server {
     extern QSERV_CALLBACK savemap_cmd(p);
     extern QSERV_CALLBACK autosendmap_cmd(p);
     extern QSERV_CALLBACK loadmap_cmd(p);
+    //extern QSERV_CALLBACK owords_cmd(p);
 }
 
 #endif
