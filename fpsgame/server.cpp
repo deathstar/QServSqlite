@@ -14,6 +14,10 @@
 int count = 0;
 int msgcount[128];
 
+VAR(regenbluearmour, 0, 1, 1);  
+ 
+extern ENetAddress masteraddress;               
+
 namespace game {
     void parseoptions(vector<const char *> &args)
     {
@@ -67,11 +71,8 @@ void out(int type, const char *fmt, ...)
     }
 }
 
-extern ENetAddress masteraddress;
-
-VAR(regenbluearmour, 0, 1, 1);
-
 namespace server {
+
     bool duplicatename(clientinfo *ci, char *name) {
         if(!name) name = ci->name;
         loopv(clients) if(clients[i]!=ci && !strcmp(name, clients[i]->name)) return true;
@@ -110,14 +111,63 @@ namespace server {
         bannedips.add(b);
     }
 
-    //QServ
+    SVAR(serverdesc, "");
+    SVAR(serverpass, "");
+    SVAR(adminpass, "");
+    SVAR(servermotd, "");
+    SVAR(sweartext, "");
+    SVAR(spreesuicidemsg, "");
+    SVAR(spreefinmsg, "");
+    SVAR(defmultikillmsg, "MULTI KILL");
+    SVAR(pingwarncustommsg, "");
+    SVAR(defaultmap, "");
+    SVAR(defaultmodename, "");
+
+	//Variables							             VAR(variable name, default value if not defined, minimum value, maximum value);
+    VAR(minspreefrags, 2, 5, INT_MAX);               //minimum number of kills for a killing spree to occur
+    VAR(multifragmillis, 1, 2000, INT_MAX);          //milliseconds between multi-kill messages
+    VAR(maxpingwarn, 1, 1000, INT_MAX);              //maximum ping before a client is warned about their ping
+    VAR(minmultikill, 2, 2, INT_MAX);                //minimum number of kills for a multi-kill to occur
+    VAR(spammillis, 1, 1000, INT_MAX);               //interval for spam detection
+    VAR(maxspam, 2, 3, INT_MAX);                     //number of lines that you can type in spammillis interval without getting blocked
+    VAR(maxteamkills, 1, 100, INT_MAX);              //max teamkill number for message
+    VAR(clearbansonempty, 0, 1, 1);                  //enables/disables clearing bans when the server empties of players
+    VAR(maxdemos, 0, 5, 25);                         //maximum demos stored on the server
+    VAR(maxdemosize, 0, 16, 64);                     //sets the max demo size for packets per demo
+    VAR(restrictdemos, 0, 0, 1);                     //restircts recording demos for masters/admins/nopriv
+    VAR(restrictpausegame, 0, 0, 1);                 //restricts setting pausegame for masters/admin/nopriv
+    VAR(restrictgamespeed, 0, 0, 1);                 //restricts setting gamespeed for masters/admin/nopriv
+    VAR(autodemo, 0, 0, 1);                          //record demos automatically
+    VAR(welcomewithname, 0, 0, 1);                   //welcome a client with name
+    VAR(showclientips, 0, 0, 1);                     //admins see client IP's on connect
+    VAR(nodamage, 0, 0, 1);                          //no damage for anyone
+    VAR(autosendmap, 0, 1, 1);                       //automatically sends map in edit mode
+    VAR(instacoop, 0, 0, 1);                         //insta like characteristics of edit mode
+    VAR(instacoop_gamelimit, 1000, 600000, 9999999); //time limit for instacoop games
+    VAR(enable_passflag, 0, 1, 1);                   //enables pass the flag in ctf modes
+    VAR(no_single_private, 0, 0, 1);                 //no single user can set mastermode private (requires at least 2 clients/admins are exempt)
+    VAR(enablemultiplemasters, 0, 0, 1);             //enables /setmaster 1 for multiple clients (stops need for #sendprivs or givemaster)
+    VAR(persistteams, 0, 0, 1);                      //persistant teams across matches
+    VAR(httpgeolocation, 0, 1, 1);                   //http geolocation, if 0 then use geoip
+	VAR(enable_suicidemsg, 0, 0, 1);                 //enables/disables message sent to everyone when someone suicides
+	VAR(enable_healteammates, 0, 0, 1);              //enables/disables the ability to heal teammates by shooting them 
+	VAR(healamount, 1, 1000, INT_MAX);               //how much hp a teammate receives when shot if enable_healteammates is true
+	VAR(serverflagruns, 0, 0, 1); 					 //enable/disable flagrun message/storage
+	VAR(banflagrunhackers, 0, 0, 1); 				 //autoban flag runners that score in <500ms
+
     bool firstblood;
     bool enableautosendmap = true;
     bool q_teammode, persist = false;
+
+    int64_t lastfragmillis;
+    int multifrags;
+    int spreefrags;
+
     bool notgotitems = true; //true when map has changed and waiting for clients to send item
     bool gamepaused = false, shouldstep = true;
     int gamemillis = 0, gamelimit = 0, nextexceeded = 0;
     int gamespeed = 100, interm = 0, gamemode = 0;
+
     string smapname = "";
     enet_uint32 lastsend = 0;
     int mastermode = MM_OPEN, mastermask = MM_PRIVSERV;
@@ -136,8 +186,6 @@ namespace server {
         }
     }
     
-    VAR(serverflagruns, 0, 0, 1); //enable/disable flagrun message/storage
-	VAR(banflagrunhackers, 0, 0, 1); //autoban flagrunners that score in <500ms 
     struct _flagrun
     {
         char *map;
@@ -425,53 +473,6 @@ namespace server {
     bool demonextmatch = false;
     stream *demotmp = NULL, *demorecord = NULL, *demoplayback = NULL;
     int nextplayback = 0;
-    
-    //QServ
-    SVAR(serverdesc, "");
-    SVAR(serverpass, "");
-    SVAR(adminpass, "");
-    SVAR(servermotd, "");
-    SVAR(sweartext, "");
-    SVAR(spreesuicidemsg, "");
-    SVAR(spreefinmsg, "");
-    SVAR(defmultikillmsg, "MULTI KILL");
-    SVAR(pingwarncustommsg, "");
-    SVAR(defaultmap, "");
-    SVAR(defaultmodename, "");
-    
-    int64_t lastfragmillis;
-    int multifrags;
-    int spreefrags;
-    
-    //Format: VAR(variable name, default value if not defined in server-init, minimum value, maximum value);
-    VAR(minspreefrags, 2, 5, INT_MAX);               //minimum number of kills for a killing spree to occur
-    VAR(multifragmillis, 1, 2000, INT_MAX);          //milliseconds between multi-kill messages
-    VAR(maxpingwarn, 1, 1000, INT_MAX);              //maximum ping before a client is warned about their ping
-    VAR(minmultikill, 2, 2, INT_MAX);                //minimum number of kills for a multi-kill to occur
-    VAR(spammillis, 1, 1000, INT_MAX);               //interval for spam detection
-    VAR(maxspam, 2, 3, INT_MAX);                     //number of lines that you can type in spammillis interval without getting blocked
-    VAR(maxteamkills, 1, 100, INT_MAX);              //max teamkill number for message
-    VAR(clearbansonempty, 0, 1, 1);                  //enables/disables clearing bans when the server empties of players
-    VAR(maxdemos, 0, 5, 25);                         //maximum demos stored on the server
-    VAR(maxdemosize, 0, 16, 64);                     //sets the max demo size for packets per demo
-    VAR(restrictdemos, 0, 0, 1);                     //restircts recording demos for masters/admins/nopriv
-    VAR(restrictpausegame, 0, 0, 1);                 //restricts setting pausegame for masters/admin/nopriv
-    VAR(restrictgamespeed, 0, 0, 1);                 //restricts setting gamespeed for masters/admin/nopriv
-    VAR(autodemo, 0, 0, 1);                          //record demos automatically
-    VAR(welcomewithname, 0, 0, 1);                   //welcome a client with name
-    VAR(showclientips, 0, 0, 1);                     //admins see client IP's on connect
-    VAR(nodamage, 0, 0, 1);                          //no damage for anyone
-    VAR(autosendmap, 0, 1, 1);                       //automatically sends map in edit mode
-    VAR(instacoop, 0, 0, 1);                         //insta like characteristics of edit mode
-    VAR(instacoop_gamelimit, 1000, 600000, 9999999); //time limit for instacoop games
-    VAR(enable_passflag, 0, 1, 1);                   //enables pass the flag in ctf modes
-    VAR(no_single_private, 0, 0, 1);                 //no single user can set mastermode private (requires at least 2 clients/admins are exempt)
-    VAR(enablemultiplemasters, 0, 0, 1);             //enables /setmaster 1 for multiple clients (stops need for #sendprivs or givemaster)
-    VAR(persistteams, 0, 0, 1);                      //persistant teams across matches
-    VAR(httpgeolocation, 0, 1, 1);                   //http geolocation, if 0 then use geoip
-	VAR(enable_suicidemsg, 0, 0, 1);                 //enables/disables message sent to everyone when someone suicides
-	VAR(enable_healteammates, 0, 0, 1);              //enables/disables the ability to heal teammates by shooting them 
-	VAR(healamount, 1, 1000, INT_MAX);               //how much hp a teammate receives when shot if enable_healteammates is true
         
     VARF(publicserver, 0, 0, 2, {
         switch(publicserver)
@@ -484,7 +485,6 @@ namespace server {
     
     static const struct { const char *name; int timediv; } timedivinfos[] =
     {
-        // month is inaccurate
         { "week", 60*60*24*7 },
         { "day", 60*60*24 },
         { "hour", 60*60 },
@@ -4898,4 +4898,3 @@ best.add(clients[i]); \
     
 #include "aiman.h"
 }
-
