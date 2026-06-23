@@ -10,6 +10,7 @@
 ::std::vector<::std::string> votedIPs;
 ::std::vector<::std::string> editMutedIPs;
 ::std::vector<::std::string> lockedSpecIPs;
+::std::vector<::std::string> mutedIPs;
 
 int count = 0;
 int msgcount[128];
@@ -3112,7 +3113,6 @@ best.add(clients[i]); \
                 addteamkill(actor, target, 1);
             }
             ts.deadflush = ts.lastdeath + DEATHMILLIS;
-            // ts.respawn(); don't issue respawn yet until DEATHMILLIS has elapsed
         }
     }
     
@@ -3470,6 +3470,9 @@ best.add(clients[i]); \
     void sendservinfo(clientinfo *ci)
     {
         sendf(ci->clientnum, 1, "ri5ss", N_SERVINFO, ci->clientnum, PROTOCOL_VERSION, ci->sessionid, serverpass[0] ? 1 : 0, serverdesc, serverauth);
+        if(ci->isSpecLocked) {
+        	forcespectator(ci);
+    	}
     }
     
     void noclients()
@@ -3515,30 +3518,36 @@ best.add(clients[i]); \
     {
     	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
 		if (!ci) return DISC_NONE;
+		bool is_new_connection = (ci->connectmillis == 0);
     	copystring(ci->ip, ipstr);
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
-        ci->sessionid = (rnd(0x1000000) * ((totalmillis % 10000) + 1)) & 0xFFFFFF;
+        ci->sessionid = ((unsigned int)rnd(0x1000000) * ((totalmillis % 10000) + 1)) & 0xFFFFFF; 
    
-        if (showclientips) {
+        if (showclientips && is_new_connection) {
         	defformatstring(cm)("IP: %s", ci->ip);
         	privilegemsg(PRIV_ADMIN, cm);
        	}
    
        	connects.add(ci);
        	for(const auto &mutedIP : editMutedIPs) {
-    		if(strcmp(mutedIP.c_str(), ci->ip) == 0) {
-        		ci->isEditMuted = true;
-        		break; 
-    		}
-		}
-		for(const auto &lockedIP : lockedSpecIPs) {
-		    if(strcmp(lockedIP.c_str(), ci->ip) == 0) {
-		        ci->isSpecLocked = true;
-		        forcespectator(ci); 
-		        break;
-		    }
-		}
+       	        if(mutedIP == ci->ip) {
+       	            ci->isEditMuted = true;
+       	            break; 
+       	        }
+       	    }
+       	    for(const auto &lockedIP : lockedSpecIPs) {
+       	        if(lockedIP == ci->ip) {
+       	            ci->isSpecLocked = true;
+       	            break;
+       	        }
+       	    }
+       	    for(const auto &mutedIP : mutedIPs) {
+       	        if(mutedIP == ci->ip) {
+       	            ci->isMuted = true;
+       	            break;
+       	        }
+       	    }
         if (!m_mp(gamemode)) return DISC_LOCAL;
    		ci->votedmapsucks = false;
         ci->stats_saved_this_session = false;
@@ -3566,6 +3575,9 @@ best.add(clients[i]); \
                aiman::removeai(ci);
                if(!numclients(-1, false, true)) noclients(); // bans clear when server empties
                if(ci->local) checkpausegame();
+               ci->isEditMuted = false; 
+               ci->isSpecLocked = false;
+               ci->isMuted = false;
                out(ECHO_CONSOLE, "%s disconnected", colorname(ci));
            }
            else connects.removeobj(ci);
@@ -3834,6 +3846,11 @@ best.add(clients[i]); \
     void receivefile(int sender, uchar *data, int len)
     {
         clientinfo *ci = getinfo(sender);
+        if(ci->isEditMuted) 
+        {
+            sendf(sender, 1, "ris", N_SERVMSG, "\f3Error: Map uploads are disabled while you are edit-muted.");
+            return; 
+        }
         if(!m_edit || len <= 0 || len > 4*1024*1024 || (instacoop && ci->privilege != PRIV_ADMIN)) return; //ignore empty sendmaps/instacoop w/o admin
         if(ci->state.state==CS_SPECTATOR && !ci->privilege && !ci->local) return;
         if(mapdata) DELETEP(mapdata);
@@ -4085,10 +4102,13 @@ best.add(clients[i]); \
                 }
                 if(val)
                 {
-                    if(instacoop || ci->isEditMuted) {
+                    if(instacoop) {
                         forcespectator(ci);
+                        //will add ip to speclocked ip vector and disallow instacoop player from unspecing after reconnect
+                        //should add clientinfo struct tempSpecLock to disallow unspectating for this session only
                         ci->isSpecLocked = true;
                         sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: Editing is not allowed, please reconnect to continue playing.");
+                        break;
                     }
                     else {
                         ci->state.editstate = ci->state.state;
@@ -4130,6 +4150,15 @@ best.add(clients[i]); \
                 break;
                 
             case N_TRYSPAWN:
+            	if(ci && ci->isSpecLocked)
+            	    {
+            	        if(ci->state.state != CS_SPECTATOR) 
+            	        {
+            	            ci->state.state = CS_SPECTATOR;
+            	            sendf(-1, 1, "ri2", N_SPECTATOR, ci->clientnum, 1);
+            	        }
+            	        return; 
+            	    }
                 if(!ci || !cq || cq->state.state!=CS_DEAD || cq->state.lastspawn>=0 || (smode && !smode->canspawn(cq))) break;
                 if(!ci->clientmap[0] && !ci->mapcrc)
                 {
@@ -4327,7 +4356,7 @@ best.add(clients[i]); \
                 break;
             }
                 
-      case N_SWITCHTEAM:
+      		case N_SWITCHTEAM:
             {
                 getstring(text, p);
                 filtertext(text, text, false, false, MAXTEAMLEN);
@@ -4369,33 +4398,52 @@ best.add(clients[i]); \
                 break;
             }
     
-            /*
-            Causes message error
-            case N_EDITF:       //maptitle, fpush
-            case N_EDITM:       //material
-            case N_REPLACE:     //replace cube
-            case N_DELCUBE:     //editdelcube
-            case N_ROTATE:      //rotate
-            case N_FLIP:        //flipcube
-            */
-            case N_EDITT:       //texture
-            case N_EDITVSLOT:   //vscroll, vscolor
+            case N_EDITF:       // maptitle, fpush
+            case N_EDITM:       // material
+            case N_REPLACE:     // replace cube
+            case N_DELCUBE:     // editdelcube
+            case N_ROTATE:      // rotate
+            case N_FLIP:        // flipcube
             {
-                int size = server::msgsizelookup(type);
+            	int size = server::msgsizelookup(type);
+                if(size<=0) { disconnect_client(sender, DISC_MSGERR); return; }
+                loopi(size-1) getint(p); // Safely extract the fixed-size parameters from the buffer
+                        
+                if(ci->isEditMuted)
+            	{
+                	sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your map modifications are muted");
+                    break; 
+                }
+                        
+                if(ci && ci->state.state!=CS_SPECTATOR) 
+                {
+                	QUEUE_MSG;
+                }
+                break;
+            }
+            
+
+        	case N_EDITT:       // texture
+            case N_EDITVSLOT:   // vscroll, vscolor
+            {
+            	int size = server::msgsizelookup(type);
                 if(size<=0) { disconnect_client(sender, DISC_MSGERR); return; }
                 loopi(size-1) getint(p);
                 if(p.remaining() < 2) { disconnect_client(sender, DISC_MSGERR); return; }
                 int extra = lilswap(*(const ushort *)p.pad(2));
                 if(p.remaining() < extra) { disconnect_client(sender, DISC_MSGERR); return; }
                 p.pad(extra);
+                        
                 if(ci->isEditMuted)
                 {
-                    sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your editing is muted");
-                    break;
+                	sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your texture editing is muted");
+                    break; 
                 }
-                else if(ci && ci->state.state!=CS_SPECTATOR) {
-                    QUEUE_MSG;
-				}
+                        
+                if(ci && ci->state.state!=CS_SPECTATOR) 
+                {
+                	QUEUE_MSG;
+                }
                 break;
             }
                 
@@ -4409,6 +4457,12 @@ best.add(clients[i]); \
                     break;
                 }
                 if(p.remaining() < packlen) { disconnect_client(sender, DISC_MSGERR); return; }
+                if(ci->isEditMuted) 
+            	{
+                	if(packlen > 0) p.subbuf(packlen); // Safely advance the buffer pointer past the payload
+                	sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your undo/redo history is muted");
+                	break;
+            	}
                 packetbuf q(32 + packlen, ENET_PACKET_FLAG_RELIABLE);
                 putint(q, type);
                 putint(q, ci->clientnum);
@@ -4443,26 +4497,27 @@ best.add(clients[i]); \
             }
         
             case N_EDITVAR:
-            {
-                int type = getint(p);
-                getstring(text, p);
-                switch(type)
-                {
-                    case ID_VAR: getint(p); break;
-                    case ID_FVAR: getfloat(p); break;
-                    case ID_SVAR: getstring(text, p);
-                }
-                if(ci && ci->state.state!=CS_SPECTATOR && !ci->isEditMuted) {
+            	{
+                    int type = getint(p);
+                    getstring(text, p);
+                    switch(type)
+                    {
+                        case ID_VAR:  getint(p); break;
+                        case ID_FVAR: getfloat(p); break;
+                        case ID_SVAR: getstring(text, p); break;
+                    }
+                        
+                    if(!ci || ci->state.state == CS_SPECTATOR) break;
+                    if(ci->isEditMuted) 
+                    {
+                        sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your variable editing is muted");
+                        break;
+                    }
                     QUEUE_MSG;
+            	 	break;
                 }
-                else {
-                    sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3[Warning] Your variable editing is muted");
-                    break;
-                }
-                break;
-            }
                 
-            case N_PING:
+			case N_PING:
                 sendf(sender, 1, "i2", N_PONG, getint(p));
                 break;
                 
@@ -4545,8 +4600,18 @@ best.add(clients[i]); \
             case N_SPECTATOR:
             {
                 int spectator = getint(p), val = getint(p);
+                
                 if(!ci->privilege && !ci->local && (spectator!=sender || (ci->state.state==CS_SPECTATOR && mastermode>=MM_LOCKED))) break;
                 clientinfo *spinfo = (clientinfo *)getclientinfo(spectator); //no bots
+                if(spinfo->isSpecLocked && !val) 
+                    {
+                        if(spinfo->state.state != CS_SPECTATOR)
+                        {
+                            spinfo->state.state = CS_SPECTATOR;
+                            sendf(-1, 1, "ri2", N_SPECTATOR, spinfo->clientnum, 1);
+                        }
+                        break; 
+                    }
                 if(!spinfo || (spinfo->state.state==CS_SPECTATOR ? val : !val)) break;
                 
                 if(spinfo->state.state!=CS_SPECTATOR && val)
@@ -4659,6 +4724,11 @@ best.add(clients[i]); \
             {
                 int size = getint(p);
                 if(!ci->privilege && !ci->local && ci->state.state==CS_SPECTATOR) break;
+                if(ci->isEditMuted)
+            	{
+                	sendf(sender, 1, "ris", N_SERVMSG, "\f3Error: You may not create a new map while you are edit muted.");
+                	break; 
+            	}
                 if(size>=0)
                 {
                     smapname[0] = '\0';
@@ -4666,13 +4736,8 @@ best.add(clients[i]); \
                     notgotitems = false;
                     if(smode) smode->newmap();
                 }
-                if(!ci->isEditMuted) {
-                    QUEUE_MSG;
-                }
-                else {
-                    sendf(sender, 1, "ris", N_SERVMSG, "\f3Error: You may not create a new map while you are edit muted.");
-                    break;
-                }
+                
+                QUEUE_MSG;
                 break;
             }
                 
