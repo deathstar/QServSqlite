@@ -1,7 +1,3 @@
-//
-//  HTTPRequest
-//
-
 #ifndef HTTPREQUEST_HPP
 #define HTTPREQUEST_HPP
 
@@ -29,7 +25,7 @@
 #  endif
 #  include <winsock2.h>
 #  if _WIN32_WINNT < _WIN32_WINNT_WINXP
-extern "C" char *_strdup(const char *strSource);
+#    include <cstring>
 #    define strdup _strdup
 #    include <wspiapi.h>
 #  endif
