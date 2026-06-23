@@ -85,7 +85,7 @@ namespace server {
     SVAR(defaultmap, "");
     SVAR(defaultmodename, "");
 
-	//Variables							             VAR(variable name, default value if not defined, minimum value, maximum value);
+	//Variables							             VAR(variable name, minimum val, current (default) val, maximum value);
     VAR(minspreefrags, 2, 5, INT_MAX);               //minimum number of kills for a killing spree to occur
     VAR(multifragmillis, 1, 2000, INT_MAX);          //milliseconds between multi-kill messages
     VAR(maxpingwarn, 1, 1000, INT_MAX);              //maximum ping before a client is warned about their ping
