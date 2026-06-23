@@ -326,7 +326,7 @@ void ircBot::init()
     while(irc_running) 
     {
         // Non-blocking timer: enforce 5-second wait between attempts
-        if (time(NULL) - last_attempt < 5) 
+        for(int i = 0; i < 50 && irc_running; i++)
         {
             // Small sleep here (100ms) prevents 100% CPU usage while waiting
 #ifdef WIN32
@@ -336,7 +336,6 @@ void ircBot::init()
 #endif
             continue; 
         }
-        last_attempt = time(NULL);
 
         connected = false;
         printf("[IRC] Connecting to %s:%d...\n", irchost, ircport);
@@ -355,11 +354,18 @@ void ircBot::init()
         memset(&sa, 0, sizeof(sa));
         sa.sin_family = AF_INET;
         sa.sin_port = htons(ircport);
-#ifdef _WIN32
-        memcpy((char *)&sa.sin_addr.s_addr, *he->h_addr_list, sizeof(sa.sin_addr.s_addr));
-#else
-        bcopy(*he->h_addr_list, (char *)&sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
-#endif
+        
+         // Pull the pointer out byte-by-byte
+        char *addr_ptr = nullptr;
+        std::memcpy(&addr_ptr, he->h_addr_list, sizeof(char *));
+        
+        if(!addr_ptr)
+        	{
+            	printf("[IRC] Invalid address list received\n");
+                if(sock >= 0) { close(sock); sock = -1; }
+                continue;
+            }
+        std::memcpy(&sa.sin_addr.s_addr, addr_ptr, sizeof(sa.sin_addr.s_addr));
 
         if(connect(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0)
         {
