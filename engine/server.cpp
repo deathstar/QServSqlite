@@ -1262,10 +1262,10 @@ vector<const char *> gameargs;
 
 #include "../mod/QCom.h"
 
-//main irc init
 void *irc_thread(void *t) {
     irc.init();
     pthread_exit((void*)t);
+	return nullptr;
 }
 
 int main(int argc, char **argv) {
@@ -1275,7 +1275,7 @@ int main(int argc, char **argv) {
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
         printf("Failed to initialize Windows network application instance.\n");
-        return EXIT_FAILURE;
+        return 1;
     }
 #endif
 
@@ -1334,5 +1334,5 @@ int main(int argc, char **argv) {
     WSACleanup(); 
 #endif
 
-    return EXIT_SUCCESS;
+    return 0;
 }
