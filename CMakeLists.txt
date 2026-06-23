@@ -25,7 +25,7 @@ endif()
 add_subdirectory(enet)
 add_subdirectory(GeoIP)
 
-# --- CORRECTED WINDOWS STATIC ZLIB OVERRIDE ---
+# Windows static zlib override
 if(WIN32)
     # Bypass find_package and hardcode paths to MinGW's internal static libz.a
     set(ZLIB_FOUND TRUE)
@@ -50,6 +50,9 @@ set(qserv_srcs
 )
 
 add_executable(qserv ${qserv_srcs})
+
+# suppress sqlite macro redef warnings
+target_compile_options(qserv PRIVATE -Wno-builtin-macro-redefined)
 
 target_include_directories(qserv PRIVATE
     ${CMAKE_SOURCE_DIR}/src/engine
@@ -82,14 +85,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 endif()
 
-# Platform-specific static linking structures
 set(PLATFORM_LIBS)
 if(WIN32)
     # Force complete static linking across GCC dependencies
     target_link_options(qserv PRIVATE -static -static-libgcc -static-libstdc++)
     
     # FORCE ZLIB TO STOP GENERATING __imp_ DLL DECORATIONS
-    target_compile_definitions(qserv PRIVATE SQLITE_STATIC ZLIB_INTERNAL) # <-- CHANGED TO ZLIB_INTERNAL
+    target_compile_definitions(qserv PRIVATE SQLITE_STATIC ZLIB_INTERNAL) 
     
     set(SQLITE3_LIBRARY "-l:libsqlite3.a")
     set(ZLIB_LINK_TARGET "${ZLIB_LIBRARIES}")
@@ -99,7 +101,6 @@ else()
     set(ZLIB_LINK_TARGET ZLIB::ZLIB)
 endif()
 
-# Core combined linking sequence with correct library processing order
 target_link_libraries(qserv PRIVATE
     enet
     GeoIP
