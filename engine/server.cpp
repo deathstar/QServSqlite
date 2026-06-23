@@ -53,17 +53,25 @@ void logoutf(const char *fmt, ...)
 
 static void writelog(FILE *file, const char *fmt, va_list args)
 {
-    // Local arrays allocated per-thread on the stack to prevent cross-thread corruption
-    char buf[LOGSTRLEN];
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int len = vsnprintf(NULL, 0, fmt, args_copy);
+    va_end(args_copy);
+
+    if(len < 0) return;
+
+    char *buf = new char[len + 1];
+    vsnprintf(buf, len + 1, fmt, args);
+
     uchar ubuf[512];
-    vformatstring(buf, fmt, args, sizeof(buf));
-    int len = strlen(buf), carry = 0;
+    int offset = 0, carry = 0;
     while(carry < len)
     {
-        int numu = encodeutf8(ubuf, sizeof(ubuf)-1, &((uchar *)buf)[carry], len - carry, &carry);
+        int numu = encodeutf8(ubuf, sizeof(ubuf) - 1, (uchar *)&buf[carry], len - carry, &carry);
         if(carry >= len) ubuf[numu++] = '\n';
         fwrite(ubuf, 1, numu, file);
     }
+    delete[] buf;
 }
 
 void fatal(const char *fmt, ...)
