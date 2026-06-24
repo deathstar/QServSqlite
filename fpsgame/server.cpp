@@ -2019,7 +2019,6 @@ namespace server {
         }
     
         if(stmt) sqlite3_finalize(stmt);
-        ci->stats_loaded = true;
     }
     
    void sendplayerstats(clientinfo *ci)
@@ -2372,6 +2371,69 @@ namespace server {
         }
         notgotitems = false;
     }
+    
+    void savestats(clientinfo *ci)
+       {
+           if(!ci || ci->state.aitype != AI_NONE) return;
+           
+           char key[64];
+           make_name_key_utf8(ci->name, key, sizeof(key));
+           
+           // Only save if the player actually did something
+           int s_frags  = max(0, ci->state.frags);
+           int s_deaths = max(0, ci->state.deaths);
+           int s_flags  = max(0, ci->state.flags);
+       
+           if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
+       
+           sqlite3 *db = qs.getDB();
+           if(!db) return;
+       
+           // Use atomic addition: FRAGS = FRAGS + ?
+           const char *sql =
+               "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
+               "VALUES (?, ?, ?, ?, ?) "
+               "ON CONFLICT(NAME) DO UPDATE SET "
+               "FRAGS = FRAGS + excluded.FRAGS, "
+               "DEATHS = DEATHS + excluded.DEATHS, "
+               "FLAGS = FLAGS + excluded.FLAGS, "
+               "KD = CAST((FRAGS + excluded.FRAGS) AS REAL) / NULLIF((DEATHS + excluded.DEATHS), 0);";
+       
+           sqlite3_stmt *stmt = nullptr;
+           if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+           {
+               sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+               sqlite3_bind_int(stmt, 2, s_frags);
+               sqlite3_bind_int(stmt, 3, s_deaths);
+               sqlite3_bind_int(stmt, 4, s_flags);
+               sqlite3_bind_double(stmt, 5, (double)s_frags / (max(1, s_deaths))); 
+       
+               // Execute exactly once and capture the result
+               int rc = sqlite3_step(stmt);
+               
+               if(rc == SQLITE_DONE) 
+               {
+                   fprintf(stderr, "SQL SUCCEEDED for %s: Added %d frags, %d deaths, %d flags\n", 
+                       ci->name, s_frags, s_deaths, s_flags);
+               }
+               else
+               {
+                   fprintf(stderr, "SQL FAILED for %s: %s\n", ci->name, sqlite3_errmsg(db));
+               }
+               
+               sqlite3_finalize(stmt);
+           }
+           else
+           {
+               fprintf(stderr, "SQL PREPARE FAILED: %s\n", sqlite3_errmsg(db));
+           }
+           
+           // Reset the local stats so they don't get double-counted
+           ci->state.frags = 0;
+           ci->state.deaths = 0;
+           ci->state.flags = 0;
+       }
+       
     VAR(defaultgamespeed, 10, 100, 1000);
 	extern int mapsucksvotes;
     void changemap(const char *s, int mode)
@@ -2379,6 +2441,14 @@ namespace server {
         //can cause excess flood on loop i mapchange for IRC
         out(ECHO_CONSOLE, "Map changed to: %s | Modenum: %d", s, mode);
         out(ECHO_CONSOLE, "Gamespeed is: %d", defaultgamespeed);
+        loopv(clients)
+        {
+            clientinfo *ci = clients[i];
+            if(ci && ci->state.aitype == AI_NONE) 
+            {
+                savestats(ci);
+            }
+        }
         stopdemo();
         pausegame(false);
         changegamespeed(defaultgamespeed);
@@ -2425,7 +2495,6 @@ namespace server {
         loopv(clients)
         {
             clientinfo *ci = clients[i];
-			ci->stats_saved_this_session = false; //qserv
             ci->mapchange();
             ci->state.lasttimeplayed = lastmillis;
             if(m_mp(gamemode) && ci->state.state!=CS_SPECTATOR) sendspawn(ci);
@@ -2921,81 +2990,18 @@ best.add(clients[i]); \
         if(!hasmap(ci)) rotatemap(true);
         //should checkmaps
     }
-		
-    void savestats(clientinfo *ci)
-    {
-		if(!ci || ci->state.aitype != AI_NONE) return;
-		if(!ci->name[0]) return;
-
-
-		int db_f = ci->stats_loaded ? ci->db_frags  : 0;
-		int db_d = ci->stats_loaded ? ci->db_deaths : 0;
-		int db_g = ci->stats_loaded ? ci->db_flags  : 0;
-		
-		char key[64];
-		make_name_key_utf8(ci->name, key, sizeof(key));
-		
-		int s_frags  = ci->state.frags;  if(s_frags  < 0) s_frags  = 0;
-		int s_deaths = ci->state.deaths; if(s_deaths < 0) s_deaths = 0;
-		int s_flags  = ci->state.flags;  if(s_flags  < 0) s_flags  = 0;
-		
-		int total_frags  = db_f + s_frags;
-		int total_deaths = db_d + s_deaths;
-		int total_flags  = db_g + s_flags;
-		
-		double kd = (total_deaths > 0) ? (double)total_frags / (double)total_deaths : (double)total_frags;
-    
-        sqlite3 *db = qs.getDB();
-        if(!db) return;
-    
-        ensure_stats_table(db);
-    
-        const char *sql =
-            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
-            "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(NAME) DO UPDATE SET "
-            "FRAGS=excluded.FRAGS, "
-            "DEATHS=excluded.DEATHS, "
-            "FLAGS=excluded.FLAGS, "
-            "KD=excluded.KD;";
-    
-        sqlite3_stmt *stmt = nullptr;
-        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
-        {
-            fprintf(stderr, "SQL ERROR (prepare): %s\n", sqlite3_errmsg(db));
-            return;
-        }
-    
-        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 2, total_frags);
-        sqlite3_bind_int(stmt, 3, total_deaths);
-        sqlite3_bind_int(stmt, 4, total_flags);
-        sqlite3_bind_double(stmt, 5, kd);
-    
-        int rc = sqlite3_step(stmt);
-    
-		if(rc == SQLITE_DONE)
-    	{
-        	ci->db_frags  = total_frags;
-        	ci->db_deaths = total_deaths;
-        	ci->db_flags  = total_flags;
-        	ci->stats_loaded = true; // Mark loaded since it's now synced with DB
-        	ci->stats_saved_this_session = true;
-    	}
-        else
-            fprintf(stderr, "SQL ERROR (upsert): %s\n", sqlite3_errmsg(db));
-    
-        sqlite3_finalize(stmt);
-    }
     
     void startintermission() {
         gamelimit = min(gamelimit, gamemillis);
         checkintermission(true);
 		loopv(clients)
-		{
-    		clientinfo *ci = clients[i];
-    		if(ci) savestats(ci);
-		}
+    	{
+        	clientinfo *xs = clients[i]; 
+        	if(xs && xs->state.aitype == AI_NONE) 
+        	{
+            	savestats(xs);
+        	}
+    	}
         out(ECHO_CONSOLE, "Intermission started");
     }
     
@@ -3550,8 +3556,6 @@ best.add(clients[i]); \
        	    }
         if (!m_mp(gamemode)) return DISC_LOCAL;
    		ci->votedmapsucks = false;
-        ci->stats_saved_this_session = false;
-        ci->stats_loaded = false;
         loadstats(ci);
    
         sendservinfo(ci);
@@ -4343,7 +4347,6 @@ best.add(clients[i]); \
                 filtertext(ci->name, text, false, false, MAXNAMELEN);
                 if(!ci->name[0]) copystring(ci->name, "unnamed");
                 QUEUE_STR(ci->name);
-                ci->stats_loaded = false; 
                 loadstats(ci);
                 out(ECHO_CONSOLE, "%s changed their name", ci->name);
                 break;
