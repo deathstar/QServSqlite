@@ -242,7 +242,7 @@ namespace server {
         void *authchallenge;
         int authkickvictim;
         char *authkickreason;
-        extrainfo _xi; //xi for QServ flagrun stats
+        extrainfo _xi; //QServ flagrun 
         
         /*QServ*/
         bool isMuted = false;
@@ -253,8 +253,6 @@ namespace server {
         bool isInvAdmin = false;
         bool hasPassedFlag = false;
         int db_frags = 0, db_deaths = 0, db_flags = 0;
-		bool stats_loaded = false;
-		bool stats_saved_this_session = false;
      
         int64_t lasttext;
         int spamlines;
