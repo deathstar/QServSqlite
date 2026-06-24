@@ -6,14 +6,22 @@
 #include <stdlib.h>
 #include "../sqlite/sqlite3.h"
 #include "../mod/QServ.h"
+#include <map>
 
 ::std::vector<::std::string> votedIPs;
 ::std::vector<::std::string> editMutedIPs;
 ::std::vector<::std::string> lockedSpecIPs;
 ::std::vector<::std::string> mutedIPs;
 
+vector<int> kick_queue;
+
 int count = 0;
 int msgcount[128];
+
+struct SessionStats {
+    bool saved_already;
+};
+std::map<std::string, SessionStats> player_session_state;
 
 VAR(regenbluearmour, 0, 1, 1);  
  
@@ -187,94 +195,84 @@ namespace server {
         }
     }
     
+    #include <string>
+    #include <vector>
+    
     struct _flagrun
     {
-        char *map;
+        std::string map;
         int gamemode;
-        char *name;
+        std::string name;
         int timeused;
     };
-    vector<_flagrun> _flagruns;
+    std::vector<_flagrun> _flagruns;
     int _newflagrun = 0;
+    
     void _doflagrun(clientinfo *ci, int timeused)
     {
         if(timeused <= 500)
         {
             out(ECHO_SERV, "\f0%s \f7is \f3speedhacking\f7. Good riddance.", colorname(ci));
-            if(banflagrunhackers) {
-                uint ip = getclientip(ci->clientnum);
-                addban(ip, 0);
-                disconnect_client(ci->clientnum, DISC_KICK);
-            }
-            else {
-                disconnect_client(ci->clientnum, DISC_KICK);
-            }
+            kick_queue.add(ci->clientnum);
             return;
         }
+        
         if(serverflagruns)
         {
-            _flagrun *fr = 0;
-            loopv(_flagruns) if(_flagruns[i].gamemode == gamemode && !strcmp(_flagruns[i].map, smapname))
-            { fr = &_flagruns[i]; break; }
+            _flagrun *fr = nullptr;
+            for(auto &f : _flagruns) 
+            {
+                if(f.gamemode == gamemode && f.map == smapname)
+                { 
+                    fr = &f; 
+                    break; 
+                }
+            }
+            
             bool isbest = false;
             if(!fr)
             {
+                if(_flagruns.size() >= 1024) return;
+                _flagruns.push_back({smapname, gamemode, ci->name, timeused});
+                fr = &_flagruns.back();
                 isbest = true;
-                int lastfr = _flagruns.length();
-                if(lastfr >= 1024) return;
-                _flagruns.add();
-                _flagruns[lastfr].map = newstring(smapname);
-                _flagruns[lastfr].gamemode = gamemode;
-                _flagruns[lastfr].name = newstring(ci->name);
-                _flagruns[lastfr].timeused = timeused;
-                fr = &_flagruns[lastfr];
             }
-            isbest = isbest || timeused <= fr->timeused;
-            if(isbest)
+            else
             {
-                _newflagrun = 1;
-                if(strcmp(ci->name, fr->name))
+                isbest = (timeused <= fr->timeused);
+                if(isbest)
                 {
-                    DELETEA(fr->name);
-                    fr->name = newstring(ci->name);
+                    _newflagrun = 1;
+                    fr->name = ci->name;
+                    fr->timeused = timeused;
                 }
-                fr->timeused = timeused;
             }
+    
             string msg;
             if(isbest) formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best\f7)",
-                                         colorname(ci), timeused/1000, (timeused%1000)/10);
+                                          colorname(ci), timeused/1000, (timeused%1000)/10);
             else formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best: \f0%s \f7%i.%02i\f7)",
-                                   colorname(ci), timeused/1000, (timeused%1000)/10, fr->name, fr->timeused/1000, (fr->timeused%1000)/10);
+                                   colorname(ci), timeused/1000, (timeused%1000)/10, fr->name.c_str(), fr->timeused/1000, (fr->timeused%1000)/10);
             sendservmsg(msg);
         }
     }
     
     void addflagrun(int mode, const char *map, int timeused, const char *name)
     {
-        _flagrun *fr = 0;
-        loopv(_flagruns) if(_flagruns[i].gamemode == mode && !strcmp(_flagruns[i].map, map))
+        for(auto &f : _flagruns)
         {
-            fr = &_flagruns[i];
-            break;
-        }
-        if(!fr)
-        {
-            int lastfr = _flagruns.length();
-            if(lastfr >= 1024) return;
-            _flagruns.add();
-            _flagruns[lastfr].map = newstring(map);
-            _flagruns[lastfr].gamemode = mode;
-            _flagruns[lastfr].name = newstring(name);
-            _flagruns[lastfr].timeused = timeused;
-            fr = &_flagruns[lastfr];
+            if(f.gamemode == mode && f.map == map)
+            {
+                f.name = name;
+                f.timeused = timeused;
+                return;
+            }
         }
         
-        if(strcmp(name, fr->name))
+        if(_flagruns.size() < 1024)
         {
-            DELETEA(fr->name);
-            fr->name = newstring(name);
+            _flagruns.push_back({map, mode, name, timeused});
         }
-        fr->timeused = timeused;
     }
     ICOMMAND(flagrun, "isis", (int *i, const char *s, int *j, const char *z), addflagrun(*i, s, *j, z));
     
@@ -286,8 +284,8 @@ namespace server {
             if(f)
             {
                 f->printf("//Automatically generated by QServ at exit: lists best flagruns\n\n");
-                loopv(_flagruns)
-                f->printf("flagrun %i \"%s\" %i \"%s\"\n", _flagruns[i].gamemode, _flagruns[i].map, _flagruns[i].timeused, _flagruns[i].name);
+                for(auto &f_run : _flagruns)
+                    f->printf("flagrun %i \"%s\" %i \"%s\"\n", f_run.gamemode, f_run.map.c_str(), f_run.timeused, f_run.name.c_str());
                 delete f;
             }
         }
@@ -1976,66 +1974,63 @@ namespace server {
     } 
 
 	void savestats(clientinfo *ci)
-    {
-        if(!ci || ci->state.aitype != AI_NONE) return;
-           
-        char key[64];
-        make_name_key_utf8(ci->name, key, sizeof(key));
-           
-        // Only save if the player actually did something
-        int s_frags  = max(0, ci->state.frags);
-        int s_deaths = max(0, ci->state.deaths);
-        int s_flags  = max(0, ci->state.flags);
-       
-        if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
-       
-        sqlite3 *db = qs.getDB();
-        if(!db) return;
-       
-        // Let SQLite do the arithmetic as it has both datasets (ci->state and db)
-        const char *sql =
-            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
-            "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(NAME) DO UPDATE SET "
-            "FRAGS = FRAGS + excluded.FRAGS, "
-            "DEATHS = DEATHS + excluded.DEATHS, "
-            "FLAGS = FLAGS + excluded.FLAGS, "
-            "KD = CAST((FRAGS + excluded.FRAGS) AS REAL) / NULLIF((DEATHS + excluded.DEATHS), 0);";
-       
-        sqlite3_stmt *stmt = nullptr;
-        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
-        {
-            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
-            sqlite3_bind_int(stmt, 2, s_frags);
-            sqlite3_bind_int(stmt, 3, s_deaths);
-            sqlite3_bind_int(stmt, 4, s_flags);
-            sqlite3_bind_double(stmt, 5, (double)s_frags / (max(1, s_deaths))); 
-       
-            int rc = sqlite3_step(stmt);
-               
-            if(rc == SQLITE_DONE) 
-            {
-            	fprintf(stderr, "SQL SUCCEEDED for %s: Added %d frags, %d deaths, %d flags\n", 
-                    ci->name, s_frags, s_deaths, s_flags);
-            }
-            else
-            {
-                fprintf(stderr, "SQL FAILED for %s: %s\n", ci->name, sqlite3_errmsg(db));
-            }
-               
-            sqlite3_finalize(stmt);
-        }
-        else
-        {
-            fprintf(stderr, "SQL PREPARE FAILED: %s\n", sqlite3_errmsg(db));
-        }
-           
-        // Reset the local stats so they don't get double-counted
-        ci->state.frags = 0;
-        ci->state.deaths = 0;
-        ci->state.flags = 0;
-    }
-		
+	{
+	    // 1. Sanity Checks
+	    if(!ci || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS || ci->name[0] == '\0') return;
+	    if(ci->state.aitype != AI_NONE || ci->state.state == CS_SPECTATOR) return;
+	    
+	    // 2. Gatekeeper: If this IP already saved this session, stop
+	    auto it = player_session_state.find(ci->ip);
+	    if(it != player_session_state.end() && it->second.saved_already) return;
+	
+	    // 3. Logic: Only send the CURRENT SESSION stats to the DB
+	    // The SQL will add these to whatever is ALREADY in the table
+	    int s_frags  = max(0, ci->state.frags);
+	    int s_deaths = max(0, ci->state.deaths);
+	    int s_flags  = max(0, ci->state.flags);
+	
+	    if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
+	    
+	    static bool is_saving = false; 
+	    if(is_saving) return; 
+	    is_saving = true;
+	
+	    sqlite3 *db = qs.getDB();
+	    if(db) 
+	    {
+	        char key[64];
+	        make_name_key_utf8(ci->name, key, sizeof(key));
+	        
+	        // This SQL takes the current DB value and adds the session delta
+	        const char *sql =
+	            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
+	            "VALUES (?, ?, ?, ?, ?) "
+	            "ON CONFLICT(NAME) DO UPDATE SET "
+	            "FRAGS = FRAGS + excluded.FRAGS, "
+	            "DEATHS = DEATHS + excluded.DEATHS, "
+	            "FLAGS = FLAGS + excluded.FLAGS, "
+	            "KD = CAST((FRAGS + excluded.FRAGS) AS REAL) / NULLIF((DEATHS + excluded.DEATHS), 0);";
+	        
+	        sqlite3_stmt *stmt = nullptr;
+	        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+	        {
+	            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+	            sqlite3_bind_int(stmt, 2, s_frags);
+	            sqlite3_bind_int(stmt, 3, s_deaths);
+	            sqlite3_bind_int(stmt, 4, s_flags);
+	            // This 5th bind is for the initial INSERT case (new player)
+	            sqlite3_bind_double(stmt, 5, (double)s_frags / (max(1, s_deaths))); 
+	        
+	            if(sqlite3_step(stmt) == SQLITE_DONE) 
+	            {
+	                player_session_state[ci->ip].saved_already = true;
+	                fprintf(stderr, "SUCCESS: Accumulated session stats for %s\n", ci->name);
+	            }
+	            sqlite3_finalize(stmt);
+	        }
+	    }
+	    is_saving = false;
+	}
     static void ensure_stats_table(sqlite3 *db)
     {
         const char *sql_create =
@@ -2047,41 +2042,8 @@ namespace server {
             "KD REAL NOT NULL);";
         sqlite3_exec(db, sql_create, nullptr, nullptr, nullptr);
     }
-    void loadstats(clientinfo *ci)
-    {
-    	if(!ci || ci->state.aitype != AI_NONE) return;
     
-        char key[64];
-        make_name_key_utf8(ci->name, key, sizeof(key));
-    
-        sqlite3 *db = qs.getDB();
-        if(!db) return;
-    
-        ensure_stats_table(db);
-    
-        sqlite3_stmt *stmt = nullptr;
-        const char *sql = "SELECT FRAGS, DEATHS, FLAGS FROM PLAYERINFO WHERE NAME=?;";
-    
-        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
-        {
-            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
-    
-            if(sqlite3_step(stmt) == SQLITE_ROW)
-            {
-                ci->db_frags  = sqlite3_column_int(stmt, 0);
-                ci->db_deaths = sqlite3_column_int(stmt, 1);
-                ci->db_flags  = sqlite3_column_int(stmt, 2);
-            }
-            else
-            {
-                ci->db_frags = ci->db_deaths = ci->db_flags = 0;
-            }
-        }
-    
-        if(stmt) sqlite3_finalize(stmt);
-    }
-    
-   void sendplayerstats(clientinfo *ci)
+   	void sendplayerstats(clientinfo *ci)
     {
         if(!ci || ci->state.aitype != AI_NONE) return;
         if(!ci->name[0]) return;
@@ -2118,12 +2080,24 @@ namespace server {
         }
         else
         {
-            defformatstring(msg)("Welcome, %s! No stats found yet, go make your mark!", ci->name);
+            defformatstring(msg)("No lifetime stats found yet for this alias, go make your mark!");
             sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
         }
     
         sqlite3_finalize(stmt);
     }
+    
+	void saveallstats()
+	{
+    	loopv(clients)
+    	{
+        	clientinfo *ci = clients[i];
+        	if(!ci || !ci->connected || ci->state.aitype != AI_NONE || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS) continue;
+        	if(!player_session_state[ci->ip].saved_already) {
+        		savestats(ci);
+        	}
+    	}
+	}
     
     void sendinitclient(clientinfo *ci)
     {
@@ -2439,20 +2413,14 @@ namespace server {
         //can cause excess flood on loop i mapchange for IRC
         out(ECHO_CONSOLE, "Map changed to: %s | Modenum: %d", s, mode);
         out(ECHO_CONSOLE, "Gamespeed is: %d", defaultgamespeed);
-        loopv(clients)
-        {
-            clientinfo *ci = clients[i];
-            if(ci && ci->state.aitype == AI_NONE) 
-            {
-                savestats(ci);
-            }
-        }
+		saveallstats();
         stopdemo();
         pausegame(false);
         changegamespeed(defaultgamespeed);
         if(smode) smode->cleanup();
         aiman::clearai();
         votedIPs.clear(); //mapsucks votes
+    	//stats_saved = false;
         mapsucksvotes = 0;
         gamemode = mode;
         gamemillis = 0;
@@ -2990,17 +2958,10 @@ best.add(clients[i]); \
     }
     
     void startintermission() {
+    	out(ECHO_CONSOLE, "\f2Game ended, intermission started...");
+    	saveallstats();
         gamelimit = min(gamelimit, gamemillis);
         checkintermission(true);
-		loopv(clients)
-    	{
-        	clientinfo *xs = clients[i]; 
-        	if(xs && xs->state.aitype == AI_NONE) 
-        	{
-            	savestats(xs);
-        	}
-    	}
-        out(ECHO_CONSOLE, "Intermission started");
     }
     
     struct spreemsg {
@@ -3273,6 +3234,29 @@ best.add(clients[i]); \
             if(curtime>0 && ci->state.quadmillis) ci->state.quadmillis = max(ci->state.quadmillis-curtime, 0);
             flushevents(ci, gamemillis);
         }
+
+        if(!kick_queue.empty())
+        {
+        	loopv(kick_queue)
+        	{
+        	    int cn = kick_queue[i];
+        	    clientinfo *ci = (clientinfo *)getclientinfo(cn);
+        	    if(ci)
+        	    {
+        	    	//forces savestats to return early and not crash
+                	ci->state.frags = 0;
+                	ci->state.deaths = 0;
+                	ci->state.flags = 0;
+                	
+        	        if(banflagrunhackers) 
+        	        {
+        	            addban(getclientip(cn), 0);
+        	        }
+        	        disconnect_client(cn, DISC_KICK);
+        	    }
+        	}
+        	kick_queue.shrink(0);
+        }
     }
     
     //QServ Banner
@@ -3491,13 +3475,20 @@ best.add(clients[i]); \
     void localconnect(int n)
     {
         clientinfo *ci = getinfo(n);
-        privilegemsg(PRIV_MASTER, "\f7Connected from host IP");
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
+        
+        ci->state.frags = 0;
+		ci->state.deaths = 0;
+		ci->state.flags = 0;
+		ci->state.timeplayed = 0;
+		
         ci->sessionid = (rnd(0x1000000)*((totalmillis%10000)+1))&0xFFFFFF;
         ci->local = true;
         connects.add(ci);
         sendservinfo(ci);
+        player_session_state[ci->ip] = {false}; // Reset the gate for this IP
+        //fprintf(stderr, "DEBUG: Registered IP %s for session\n", ci->ip);
     }
     
     void localdisconnect(int n)
@@ -3524,6 +3515,12 @@ best.add(clients[i]); \
 		if (!ci) return DISC_NONE;
 		bool is_new_connection = (ci->connectmillis == 0);
     	copystring(ci->ip, ipstr);
+    	
+    	ci->state.frags = 0;
+		ci->state.deaths = 0;
+		ci->state.flags = 0;
+		ci->state.timeplayed = 0;
+		
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
         ci->sessionid = ((unsigned int)rnd(0x1000000) * ((totalmillis % 10000) + 1)) & 0xFFFFFF; 
@@ -3554,9 +3551,11 @@ best.add(clients[i]); \
        	    }
         if (!m_mp(gamemode)) return DISC_LOCAL;
    		ci->votedmapsucks = false;
-        loadstats(ci);
    
         sendservinfo(ci);
+        
+        player_session_state[ci->ip] = {false}; // Reset the gate for this IP
+        //fprintf(stderr, "DEBUG: Registered IP %s for session\n", ci->ip);
        
         return DISC_NONE;
     }
@@ -3567,7 +3566,15 @@ best.add(clients[i]); \
            loopv(clients) if(clients[i]->authkickvictim == ci->clientnum) clients[i]->cleanauth();
            if(ci->connected)
            {
-           	   savestats(ci);
+           	 if(player_session_state.find(ci->ip) != player_session_state.end() && !player_session_state[ci->ip].saved_already) 
+			  {
+    			savestats(ci);
+			  }
+			   ci->state.frags = 0;
+        	   ci->state.deaths = 0;
+               ci->state.flags = 0;
+               ci->state.timeplayed = 0;
+               player_session_state.erase(ci->ip);
                if(ci->privilege && !ci->isInvAdmin) setmaster(ci, false);
                if(smode) smode->leavegame(ci, true);
                ci->state.timeplayed += lastmillis - ci->state.lasttimeplayed;
@@ -3581,6 +3588,10 @@ best.add(clients[i]); \
                ci->isSpecLocked = false;
                ci->isMuted = false;
                out(ECHO_CONSOLE, "%s disconnected", colorname(ci));
+               
+              //fprintf(stderr, "DEBUG: clientdisconnect() TRIGGERED for Client: %s | IP: %s\n", ci->name, ci->ip);
+              //fprintf(stderr, "DEBUG: Erasing IP %s. Was saved? %d\n", ci->ip, player_session_state[ci->ip].saved_already);
+               
            }
            else connects.removeobj(ci);
        }
@@ -4345,7 +4356,6 @@ best.add(clients[i]); \
                 filtertext(ci->name, text, false, false, MAXNAMELEN);
                 if(!ci->name[0]) copystring(ci->name, "unnamed");
                 QUEUE_STR(ci->name);
-                loadstats(ci);
                 out(ECHO_CONSOLE, "%s changed their name", ci->name);
                 break;
             }
@@ -4946,20 +4956,9 @@ best.add(clients[i]); \
     
     void serverclose()
         {
-            loopv(clients)
-            {
-                if(clients[i] && clients[i]->state.aitype == AI_NONE)
-                {
-                    savestats(clients[i]);
-                }
-            }
-            _storeflagruns();
-            loopv(_flagruns)
-            {
-                DELETEA(_flagruns[i].map);
-                DELETEA(_flagruns[i].name);
-            }
-            _flagruns.shrink(0);   
+			saveallstats();
+    		_storeflagruns();  
+   			_flagruns.clear();
         }
     
 #include "aiman.h"
