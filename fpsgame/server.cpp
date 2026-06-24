@@ -1922,7 +1922,6 @@ namespace server {
 
     bool restorescore(clientinfo *ci)
     {
-        //if(ci->local) return false;
         savedscore *sc = findscore(ci, false);
         if(sc)
         {
@@ -1941,6 +1940,67 @@ namespace server {
         gs.health, gs.maxhealth,
         gs.armour, gs.armourtype,
         gs.gunselect, GUN_PISTOL-GUN_SG+1, &gs.ammo[GUN_SG], -1);
+    }
+
+	void savestats(clientinfo *ci)
+    {
+        if(!ci || ci->state.aitype != AI_NONE) return;
+           
+        char key[64];
+        make_name_key_utf8(ci->name, key, sizeof(key));
+           
+        // Only save if the player actually did something
+        int s_frags  = max(0, ci->state.frags);
+        int s_deaths = max(0, ci->state.deaths);
+        int s_flags  = max(0, ci->state.flags);
+       
+        if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
+       
+        sqlite3 *db = qs.getDB();
+        if(!db) return;
+       
+        // Let SQLite do the arithmetic as it has both datasets (ci->state and db)
+        const char *sql =
+            "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(NAME) DO UPDATE SET "
+            "FRAGS = FRAGS + excluded.FRAGS, "
+            "DEATHS = DEATHS + excluded.DEATHS, "
+            "FLAGS = FLAGS + excluded.FLAGS, "
+            "KD = CAST((FRAGS + excluded.FRAGS) AS REAL) / NULLIF((DEATHS + excluded.DEATHS), 0);";
+       
+        sqlite3_stmt *stmt = nullptr;
+        if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 2, s_frags);
+            sqlite3_bind_int(stmt, 3, s_deaths);
+            sqlite3_bind_int(stmt, 4, s_flags);
+            sqlite3_bind_double(stmt, 5, (double)s_frags / (max(1, s_deaths))); 
+       
+            int rc = sqlite3_step(stmt);
+               
+            if(rc == SQLITE_DONE) 
+            {
+            	fprintf(stderr, "SQL SUCCEEDED for %s: Added %d frags, %d deaths, %d flags\n", 
+                    ci->name, s_frags, s_deaths, s_flags);
+            }
+            else
+            {
+                fprintf(stderr, "SQL FAILED for %s: %s\n", ci->name, sqlite3_errmsg(db));
+            }
+               
+            sqlite3_finalize(stmt);
+        }
+        else
+        {
+            fprintf(stderr, "SQL PREPARE FAILED: %s\n", sqlite3_errmsg(db));
+        }
+           
+        // Reset the local stats so they don't get double-counted
+        ci->state.frags = 0;
+        ci->state.deaths = 0;
+        ci->state.flags = 0;
     }
 		
     static void make_name_key_utf8(const char *in, char *out, int outlen)
@@ -2371,68 +2431,6 @@ namespace server {
         }
         notgotitems = false;
     }
-    
-    void savestats(clientinfo *ci)
-       {
-           if(!ci || ci->state.aitype != AI_NONE) return;
-           
-           char key[64];
-           make_name_key_utf8(ci->name, key, sizeof(key));
-           
-           // Only save if the player actually did something
-           int s_frags  = max(0, ci->state.frags);
-           int s_deaths = max(0, ci->state.deaths);
-           int s_flags  = max(0, ci->state.flags);
-       
-           if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
-       
-           sqlite3 *db = qs.getDB();
-           if(!db) return;
-       
-           // Use atomic addition: FRAGS = FRAGS + ?
-           const char *sql =
-               "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
-               "VALUES (?, ?, ?, ?, ?) "
-               "ON CONFLICT(NAME) DO UPDATE SET "
-               "FRAGS = FRAGS + excluded.FRAGS, "
-               "DEATHS = DEATHS + excluded.DEATHS, "
-               "FLAGS = FLAGS + excluded.FLAGS, "
-               "KD = CAST((FRAGS + excluded.FRAGS) AS REAL) / NULLIF((DEATHS + excluded.DEATHS), 0);";
-       
-           sqlite3_stmt *stmt = nullptr;
-           if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
-           {
-               sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
-               sqlite3_bind_int(stmt, 2, s_frags);
-               sqlite3_bind_int(stmt, 3, s_deaths);
-               sqlite3_bind_int(stmt, 4, s_flags);
-               sqlite3_bind_double(stmt, 5, (double)s_frags / (max(1, s_deaths))); 
-       
-               // Execute exactly once and capture the result
-               int rc = sqlite3_step(stmt);
-               
-               if(rc == SQLITE_DONE) 
-               {
-                   fprintf(stderr, "SQL SUCCEEDED for %s: Added %d frags, %d deaths, %d flags\n", 
-                       ci->name, s_frags, s_deaths, s_flags);
-               }
-               else
-               {
-                   fprintf(stderr, "SQL FAILED for %s: %s\n", ci->name, sqlite3_errmsg(db));
-               }
-               
-               sqlite3_finalize(stmt);
-           }
-           else
-           {
-               fprintf(stderr, "SQL PREPARE FAILED: %s\n", sqlite3_errmsg(db));
-           }
-           
-           // Reset the local stats so they don't get double-counted
-           ci->state.frags = 0;
-           ci->state.deaths = 0;
-           ci->state.flags = 0;
-       }
        
     VAR(defaultgamespeed, 10, 100, 1000);
 	extern int mapsucksvotes;
