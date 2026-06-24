@@ -66,6 +66,9 @@ int GetClientNumByName(const char* name) {
 namespace server {
 
 	extern int gamemode;
+	extern int interm;
+	extern int gamelimit;
+	extern int gamemillis;
 	
     void initCmds() {
         /**
@@ -600,7 +603,10 @@ namespace server {
         out(ECHO_SERV, "\f0%s \f7thinks this map sucks, use \f2#mapsucks \f7to vote for an intermission.", colorname(ci));
     
         if(mapsucksvotes >= (maxclients / 2)) {
-            startintermission();
+        	//DO NOT execute start intermission as it causes a crash
+    		//instead, we set gamelimit to current gamemillis
+        	//startintermission(); 
+			server::gamelimit = server::gamemillis;
             mapsucksvotes = 0;
             votedIPs.clear();
             out(ECHO_SERV, "\f7Changing map: That map sucked.");
@@ -1215,10 +1221,14 @@ namespace server {
     
     QSERV_CALLBACK forceintermission_cmd(p) {
     	if(server::gamemode == 1) return;
-        startintermission(); 
-        defformatstring(msg)("\f0%s \f7forced an intermission", CMD_SCI.name);
+    	if(server::interm > 0) return;
+    	//DO NOT execute start intermission as it causes a crash
+    	//instead, we set gamelimit to current gamemillis
+        //startintermission(); 
+        server::gamelimit = server::gamemillis;
+        defformatstring(msg)("\f0%s \f7started an intermission", CMD_SCI.name);
         sendf(-1, 1, "ris", N_SERVMSG, msg); 
-        out(ECHO_IRC, "%s forced an intermission", CMD_SCI.name);
+        out(ECHO_IRC, "%s started an intermission", CMD_SCI.name);
     }
 
     QSERV_CALLBACK me_cmd(p) {
