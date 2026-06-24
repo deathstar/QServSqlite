@@ -389,6 +389,17 @@ C:\msys64\home\<username>
 
 # ❓ Troubleshooting
 
+## Master Server Registration Failed
+
+```text
+Failed Pinging Server
+```
+
+In addition to forwarding ports 28785 and 28786 using UDP to the internal IP of the QServ host server, you will need to
+completely ensure that your firewall is open. You can set UFW rules on Linux, turn off your firewall in OSX settings (100% necessary)
+or create an inbound and outbound rule in Windows defender. This ensures that the port is open to the internet. If you are 
+using an alternative port, make sure that you also forward serverport+1 as a range, not just one port. 
+
 ## LAN Server Info Socket Error
 
 ```text
