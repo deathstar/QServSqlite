@@ -1942,6 +1942,39 @@ namespace server {
         gs.gunselect, GUN_PISTOL-GUN_SG+1, &gs.ammo[GUN_SG], -1);
     }
 
+	static void make_name_key_utf8(const char *in, char *out, int outlen)
+    {
+        if(!in || outlen <= 0) { if(outlen > 0) out[0] = '\0'; return; }
+    
+        int j = 0;
+        for(int i = 0; in[i] && j < outlen-1; i++)
+        {
+            unsigned char c = (unsigned char)in[i];
+    
+            // Strip Sauer/Cube color codes: \fX
+            if(c == '\f')
+            {
+                if(in[i+1]) i++;
+                continue;
+            }
+    
+            // Strip ASCII control chars only
+            if(c < 32) continue;
+    
+            // Keep UTF-8 bytes (>= 128) untouched
+            out[j++] = (char)c;
+        }
+        out[j] = '\0';
+    
+        // Trim ASCII whitespace
+        while(j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) out[--j] = '\0';
+        int start = 0;
+        while(out[start] == ' ' || out[start] == '\t') start++;
+        if(start > 0) memmove(out, out + start, j - start + 1);
+    
+        if(!out[0]) strncpy(out, "unnamed", outlen-1), out[outlen-1] = '\0';
+    } 
+
 	void savestats(clientinfo *ci)
     {
         if(!ci || ci->state.aitype != AI_NONE) return;
@@ -2003,39 +2036,6 @@ namespace server {
         ci->state.flags = 0;
     }
 		
-    static void make_name_key_utf8(const char *in, char *out, int outlen)
-    {
-        if(!in || outlen <= 0) { if(outlen > 0) out[0] = '\0'; return; }
-    
-        int j = 0;
-        for(int i = 0; in[i] && j < outlen-1; i++)
-        {
-            unsigned char c = (unsigned char)in[i];
-    
-            // Strip Sauer/Cube color codes: \fX
-            if(c == '\f')
-            {
-                if(in[i+1]) i++;
-                continue;
-            }
-    
-            // Strip ASCII control chars only
-            if(c < 32) continue;
-    
-            // Keep UTF-8 bytes (>= 128) untouched
-            out[j++] = (char)c;
-        }
-        out[j] = '\0';
-    
-        // Trim ASCII whitespace
-        while(j > 0 && (out[j-1] == ' ' || out[j-1] == '\t')) out[--j] = '\0';
-        int start = 0;
-        while(out[start] == ' ' || out[start] == '\t') start++;
-        if(start > 0) memmove(out, out + start, j - start + 1);
-    
-        if(!out[0]) strncpy(out, "unnamed", outlen-1), out[outlen-1] = '\0';
-    } 
-    
     static void ensure_stats_table(sqlite3 *db)
     {
         const char *sql_create =
