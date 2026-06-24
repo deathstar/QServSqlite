@@ -1,6 +1,7 @@
 #ifndef __IRCBOT_INCLUDED
 #define __IRCBOT_INCLUDED
 
+#include <cstring> 
 #include "game.h"
 
 struct IrcMsg
