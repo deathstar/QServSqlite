@@ -14,7 +14,7 @@ on:
       # Dependency/Library source code
       - 'GeoIP/**'
       - 'enet/**'
-      - 'QServSqlite/**'
+      - 'sqlite/**'
       # Configuration and Build files
       - 'config/**'
       - 'CMakeLists.txt'
