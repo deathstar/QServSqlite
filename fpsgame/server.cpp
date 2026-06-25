@@ -10,6 +10,7 @@
 #include "../sqlite/sqlite3.h"
 #include "../mod/QServ.h"
 #include <map>
+#include <csignal>
 
 ::std::vector<::std::string> votedIPs;
 ::std::vector<::std::string> editMutedIPs;
@@ -20,7 +21,7 @@ vector<int> kick_queue;
 
 int count = 0;
 int msgcount[128];
-extern volatile sig_atomic_t shutdown_requested;
+extern volatile std::sig_atomic_t shutdown_requested;
 
 struct SessionStats {
     bool saved_already;
@@ -901,9 +902,7 @@ namespace server {
     }
     
     extern void changemap(const char *s, int mode);
-   	#include <signal.h>
-    
-    
+     
     void handle_signal(int sig)
     {
         printf("Signal %d received. Requesting graceful shutdown...\n", sig);
