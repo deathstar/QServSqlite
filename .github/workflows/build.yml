@@ -22,12 +22,12 @@ jobs:
       # 1. Install Linux Dependencies
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libgeoip-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libgeoip-dev zip
         
       # 2. Install macOS Dependencies
       - name: Install macOS Dependencies
         if: runner.os == 'macOS'
-        run: brew install cmake sqlite3
+        run: brew install cmake sqlite3 zip
 
       # 3. Setup MSYS2 (Windows)
       - name: Setup MSYS2 (Windows)
@@ -38,11 +38,13 @@ jobs:
           update: true
           install: >-
             base-devel
-            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-geoip
             mingw-w64-x86_64-zlib
+            zip
 
       # 4. Build Project (Windows)
       - name: Build Project (Windows)
@@ -61,9 +63,10 @@ jobs:
 
       # 6. Package
       - name: Package Release
-        shell: bash
+        # Use msys2 shell on Windows to ensure 'zip' is found
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
-          mkdir release_bundle
+          mkdir -p release_bundle
           
           # Copy Binary
           if [ "${{ runner.os }}" == "Windows" ]; then
@@ -91,4 +94,3 @@ jobs:
           tag_name: latest
           body: "Automated build of QServ."
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
