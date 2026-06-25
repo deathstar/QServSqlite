@@ -42,9 +42,16 @@ jobs:
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-libgeoip
 
-      # 4. Build
-      - name: Build Project
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      # 2. Build (Fixed Version)
+      - name: Build Project (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cmake -B build
+          cmake --build build --config Release
+
+      - name: Build Project (Unix)
+        if: runner.os != 'Windows'
         run: |
           cmake -B build
           cmake --build build --config Release
