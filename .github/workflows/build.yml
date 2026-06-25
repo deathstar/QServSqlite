@@ -10,6 +10,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     
@@ -26,7 +27,7 @@ jobs:
       # 2. Install macOS Dependencies
       - name: Install macOS Dependencies
         if: runner.os == 'macOS'
-        run: brew install cmake sqlite3 geoip
+        run: brew install cmake sqlite3
 
       # 3. Setup MSYS2 (Windows)
       - name: Setup MSYS2 (Windows)
@@ -42,7 +43,7 @@ jobs:
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-libgeoip
 
-      # 2. Build (Fixed Version)
+      # 4. Build Project (Windows)
       - name: Build Project (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -50,13 +51,14 @@ jobs:
           cmake -B build
           cmake --build build --config Release
 
+      # 5. Build Project (Unix)
       - name: Build Project (Unix)
         if: runner.os != 'Windows'
         run: |
           cmake -B build
           cmake --build build --config Release
 
-      # 5. Package
+      # 6. Package
       - name: Package Release
         shell: bash
         run: |
@@ -69,7 +71,7 @@ jobs:
             cp build/qserv release_bundle/
           fi
           
-          # Create the folder and copy data into it
+          # Copy Data Files
           mkdir -p release_bundle/GeoIP
           cp QServSqlite/GeoIP/GeoIP.dat release_bundle/GeoIP/
           cp QServSqlite/GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
@@ -80,7 +82,7 @@ jobs:
           # Create Zip
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
-      # 6. Upload
+      # 7. Upload
       - name: Upload Release
         uses: softprops/action-gh-release@v1
         with:
