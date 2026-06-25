@@ -4,18 +4,15 @@ on:
   push:
     branches: [ main ]
     paths:
-      # Core source code
       - 'src/**'
       - 'engine/**'
       - 'shared/**'
       - 'mod/**'
       - 'fpsgame/**'
       - 'ircbot/**'
-      # Dependency/Library source code
       - 'GeoIP/**'
       - 'enet/**'
       - 'sqlite/**'
-      # Configuration and Build files
       - 'config/**'
       - 'CMakeLists.txt'
       - '.github/workflows/build.yml'
@@ -35,77 +32,61 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Install Linux Dependencies
+      # 1. Setup Dependencies
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake libsqlite3-dev zlib1g-dev libgeoip-dev zip
-        
-      # 2. Install macOS Dependencies
+
       - name: Install macOS Dependencies
         if: runner.os == 'macOS'
         run: brew install cmake sqlite3 zip
 
-      # 3. Setup MSYS2 (Windows)
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
+          cache: true
           install: >-
             base-devel
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-make
+            mingw-w64-x86_64-ninja
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-geoip
             mingw-w64-x86_64-zlib
-            zip
 
-      # 4. Build Project (Windows)
-      - name: Build Project (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
+      # 2. Build Project
+      - name: Build Project
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
         run: |
-          cmake -B build
-          cmake --build build --config Release
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cmake -B build -G Ninja
+            cmake --build build --config Release --parallel 4
+          else
+            cmake -B build
+            cmake --build build --config Release --parallel 4
+          fi
 
-      # 5. Build Project (Unix)
-      - name: Build Project (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cmake -B build
-          cmake --build build --config Release
-
-      # 6. Package (Windows)
-      - name: Package Release (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          mkdir -p release_bundle
-          cp build/qserv.exe release_bundle/
-          mkdir -p release_bundle/GeoIP
-          cp GeoIP/GeoIP.dat release_bundle/GeoIP/
-          cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
-          cp -r config/ release_bundle/
-          cp stats-webserver.py release_bundle/
-          zip -r qserv-${{ runner.os }}.zip release_bundle/
-
-      # 6. Package (Unix)
-      - name: Package Release (Unix)
-        if: runner.os != 'Windows'
+      # 3. Package Release
+      - name: Package Release
         shell: bash
         run: |
-          mkdir -p release_bundle
-          cp build/qserv release_bundle/
           mkdir -p release_bundle/GeoIP
-          cp GeoIP/GeoIP.dat release_bundle/GeoIP/
-          cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
+          
+          # Handle OS-specific executable extension
+          EXE=""
+          if [[ "${{ runner.os }}" == "Windows" ]]; then EXE=".exe"; fi
+          
+          cp build/qserv$EXE release_bundle/
+          cp GeoIP/*.dat release_bundle/GeoIP/
           cp -r config/ release_bundle/
           cp stats-webserver.py release_bundle/
+          
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
-      # 7. Upload
+      # 4. Upload
       - name: Upload Release
         uses: softprops/action-gh-release@v1
         with:
