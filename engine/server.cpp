@@ -1113,7 +1113,8 @@ void *main_thread(void*t) {
         serverslice(true, 5);
         processIRCCommands(); 
     }
-    pthread_exit((void*)t);
+    //pthread_exit((void*)t);
+	return t;
 }
 
 void *main_thread_s(void *t) {
@@ -1131,7 +1132,8 @@ void *main_thread_s(void *t) {
         serverslice(true, 5);
         processIRCCommands(); 
     }
-    pthread_exit((void*)t);
+    //pthread_exit((void*)t);
+	return t;
 }
 
 void rundedicatedserver()
@@ -1280,8 +1282,8 @@ vector<const char *> gameargs;
 
 void *irc_thread(void *t) {
     irc.init();
-    pthread_exit((void*)t);
-	return nullptr;
+    //pthread_exit((void*)t);
+	return t;
 }
 
 int main(int argc, char **argv) {
