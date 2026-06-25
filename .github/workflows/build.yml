@@ -48,10 +48,21 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          # 1. Find where libz.a actually is
+          ZLIB_PATH=$(find / -name "libz.a" 2>/dev/null | head -n 1)
+          
+          # 2. Check if we found it
+          if [ -z "$ZLIB_PATH" ]; then
+            echo "Error: libz.a not found!"
+            exit 1
+          fi
+          
+          # 3. Create the directory your CMake expects
           mkdir -p C:/msys64/mingw64/lib/
-          # This assumes the libz.a is installed in the standard MSYS2 location
-          # We just link it to where your CMake expects it
-          cp /mingw64/lib/libz.a C:/msys64/mingw64/lib/libz.a
+          
+          # 4. Link it
+          cp "$ZLIB_PATH" C:/msys64/mingw64/lib/libz.a
+          echo "Successfully linked $ZLIB_PATH to C:/msys64/mingw64/lib/libz.a"
 
       # 4. Build Project (Windows)
       - name: Build Project (Windows)
