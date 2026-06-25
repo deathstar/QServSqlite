@@ -1106,23 +1106,24 @@ void logoutfv(const char *fmt, va_list args)
 #endif
 
 pthread_t thread2;
-//unix thread
+volatile sig_atomic_t shutdown_requested;
+
 void *main_thread(void*t) {
-    for(;;) {
+    while(!shutdown_requested) {
         serverslice(true, 5);
         processIRCCommands(); 
     }
     pthread_exit((void*)t);
 }
-//windows thread
+
 void *main_thread_s(void *t) {
-    for(;;)
+    while(!shutdown_requested)
     {
 #ifdef _WIN32 
         MSG msg;
         while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
-            if(msg.message == WM_QUIT) exit(EXIT_SUCCESS);
+            if(msg.message == WM_QUIT) { shutdown_requested = 1; break; }
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
