@@ -64,6 +64,7 @@ namespace server {
     extern QSERV_CALLBACK savemap_cmd(p);
     extern QSERV_CALLBACK autosendmap_cmd(p);
     extern QSERV_CALLBACK loadmap_cmd(p);
+    extern QSERV_CALLBACK flagrun_cmd(p);
     //extern QSERV_CALLBACK owords_cmd(p);
 }
 
