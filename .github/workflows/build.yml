@@ -42,6 +42,16 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-geoip
+            mingw-w64-x86_64-zlib
+            
+      - name: Create Symlink for Zlib (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p C:/msys64/mingw64/lib/
+          # This assumes the libz.a is installed in the standard MSYS2 location
+          # We just link it to where your CMake expects it
+          cp /mingw64/lib/libz.a C:/msys64/mingw64/lib/libz.a
 
       # 4. Build Project (Windows)
       - name: Build Project (Windows)
