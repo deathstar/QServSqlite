@@ -1107,7 +1107,7 @@ void logoutfv(const char *fmt, va_list args)
 #endif
 
 pthread_t thread2;
-volatile sig_atomic_t shutdown_requested;
+volatile std::sig_atomic_t shutdown_requested = 0;
 
 void *main_thread(void*t) {
     while(!shutdown_requested) {
