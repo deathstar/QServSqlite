@@ -88,6 +88,7 @@ jobs:
           cp GeoIP/GeoIP.dat release_bundle/GeoIP/
           cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
           cp -r config/ release_bundle/
+          cp stats-webserver.py release_bundle/
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
       # 6. Package (Unix)
@@ -101,6 +102,7 @@ jobs:
           cp GeoIP/GeoIP.dat release_bundle/GeoIP/
           cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
           cp -r config/ release_bundle/
+          cp stats-webserver.py release_bundle/
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
       # 7. Upload
