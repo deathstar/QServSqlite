@@ -27,10 +27,19 @@ add_subdirectory(GeoIP)
 
 # Windows static zlib override
 if(WIN32)
-    # Bypass find_package and hardcode paths to MinGW's internal static libz.a
-    set(ZLIB_FOUND TRUE)
-    set(ZLIB_LIBRARIES "C:/msys64/mingw64/lib/libz.a")
-    set(ZLIB_INCLUDE_DIRS "C:/msys64/mingw64/include")
+    # Use $ENV{MSYSTEM_PREFIX} to dynamically find the correct MSYS2 path
+    set(MSYS_ROOT "$ENV{MSYSTEM_PREFIX}")
+    set(ZLIB_LIBRARIES "${MSYS_ROOT}/lib/libz.a")
+    set(ZLIB_INCLUDE_DIRS "${MSYS_ROOT}/include")
+    
+    # Verify the path exists; if not, fall back to find_package
+    if(NOT EXISTS "${ZLIB_LIBRARIES}")
+        message(STATUS "Static libz.a not found at ${ZLIB_LIBRARIES}, using system find_package")
+        find_package(ZLIB REQUIRED)
+    else()
+        set(ZLIB_FOUND TRUE)
+        message(STATUS "Using static zlib: ${ZLIB_LIBRARIES}")
+    endif()
 else()
     find_package(ZLIB REQUIRED)
 endif()
