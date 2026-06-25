@@ -3,6 +3,22 @@ name: Build and Release
 on:
   push:
     branches: [ main ]
+    paths:
+      # Core source code
+      - 'src/**'
+      - 'engine/**'
+      - 'shared/**'
+      - 'mod/**'
+      - 'fpsgame/**'
+      - 'ircbot/**'
+      # Dependency/Library source code
+      - 'GeoIP/**'
+      - 'enet/**'
+      - 'QServSqlite/**'
+      # Configuration and Build files
+      - 'config/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build.yml'
 
 permissions:
   contents: write
