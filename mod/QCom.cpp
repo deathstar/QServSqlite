@@ -13,6 +13,14 @@ extern ::std::vector<::std::string> editMutedIPs;
 extern ::std::vector<::std::string> lockedSpecIPs;
 extern ::std::vector<::std::string> mutedIPs;
 
+struct _flagrun
+{
+    std::string map;
+    int gamemode;
+    std::string name;
+    int timeused;
+};
+
 static std::mutex client_mutex;
 
 void RString(::std::string& subject, const ::std::string& search, const ::std::string& replace) {
@@ -69,7 +77,9 @@ namespace server {
 	extern int interm;
 	extern int gamelimit;
 	extern int gamemillis;
-	
+	extern std::vector<_flagrun> _flagruns;
+	extern void showflagrun(int cn); 
+
     void initCmds() {
         /**
             @ncommand = New Command
@@ -123,7 +133,13 @@ namespace server {
         ncommand("savemap", "\f7Saves a map to the server. Usage #savemap", PRIV_ADMIN, savemap_cmd, 0);
         ncommand("autosendmap", "\f7Automatically sends the map to connecting clients. Usage #autosendmap <1/0> (0 for off, 1 for on)", PRIV_MASTER, autosendmap_cmd, 1);
         ncommand("loadmap", "\f7Loads a map stored on the server. Usage #loadmap <mapname>", PRIV_ADMIN, loadmap_cmd, 1);
+        ncommand("flagrun", "\f7Shows the best flagrun record for this map, and your personal best. Usage #flagrun", PRIV_NONE, flagrun_cmd, 0);
     }
+    
+    QSERV_CALLBACK flagrun_cmd(p) 
+	{
+    	server::showflagrun(CMD_SENDER);
+	}
     
     QSERV_CALLBACK loadmap_cmd(p) {
         if(strlen(fulltext) > 0) {
