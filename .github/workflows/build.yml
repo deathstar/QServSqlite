@@ -41,7 +41,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-sqlite3
-            mingw-w64-x86_64-libgeoip
+            mingw-w64-x86_64-geoip
 
       # 4. Build Project (Windows)
       - name: Build Project (Windows)
