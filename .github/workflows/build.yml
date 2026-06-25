@@ -73,8 +73,8 @@ jobs:
           
           # Copy Data Files
           mkdir -p release_bundle/GeoIP
-          cp QServSqlite/GeoIP/GeoIP.dat release_bundle/GeoIP/
-          cp QServSqlite/GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
+          cp GeoIP/GeoIP.dat release_bundle/GeoIP/
+          cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
           
           # Copy Config
           cp -r config/ release_bundle/
