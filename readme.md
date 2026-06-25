@@ -152,7 +152,7 @@ config/server-init.cfg
 28786
 ```
 
-3. Start the server:
+3. Unzip qserv-win.zip, put qserv.exe in QServSqlite folder, then start the server by opening:
 
 ```text
 qserv.exe
@@ -171,13 +171,13 @@ Forward the following UDP ports to the internal IP address of your server host:
 28785
 28786
 ```
-Run normally:
+Unzip qserv-linux.zip or qserv-osx.zip, put the qserv binary in the QServSqlite folder, then run:
 
 ```bash
 ./qserv
 ```
 
-Run in background:
+Or run the server in background:
 
 ```bash
 nohup ./qserv &
