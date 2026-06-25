@@ -57,19 +57,22 @@ jobs:
             mingw-w64-x86_64-geoip
             mingw-w64-x86_64-zlib
 
-      # 2. Build Project
-      - name: Build Project
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      # 2. Build Project (Windows)
+      - name: Build Project (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cmake -B build -G Ninja
-            cmake --build build --config Release --parallel 4
-          else
-            cmake -B build
-            cmake --build build --config Release --parallel 4
-          fi
+          cmake -B build -G Ninja
+          cmake --build build --config Release --parallel 4
 
-      # 3. Package Release
+      # 3. Build Project (Unix)
+      - name: Build Project (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -B build
+          cmake --build build --config Release --parallel 4
+
+      # 4. Package Release
       - name: Package Release
         shell: bash
         run: |
@@ -86,7 +89,7 @@ jobs:
           
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
-      # 4. Upload
+      # 5. Upload
       - name: Upload Release
         uses: softprops/action-gh-release@v1
         with:
