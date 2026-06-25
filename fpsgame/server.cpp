@@ -4,6 +4,9 @@
 #include <exception>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef SQLITE_STATIC
+  #undef SQLITE_STATIC
+#endif
 #include "../sqlite/sqlite3.h"
 #include "../mod/QServ.h"
 #include <map>
