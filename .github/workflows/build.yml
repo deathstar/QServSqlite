@@ -61,29 +61,30 @@ jobs:
           cmake -B build
           cmake --build build --config Release
 
-      # 6. Package
-      - name: Package Release
-        # Use msys2 shell on Windows to ensure 'zip' is found
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      # 6. Package (Windows)
+      - name: Package Release (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           mkdir -p release_bundle
-          
-          # Copy Binary
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            cp build/qserv.exe release_bundle/
-          else
-            cp build/qserv release_bundle/
-          fi
-          
-          # Copy Data Files
+          cp build/qserv.exe release_bundle/
           mkdir -p release_bundle/GeoIP
           cp GeoIP/GeoIP.dat release_bundle/GeoIP/
           cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
-          
-          # Copy Config
           cp -r config/ release_bundle/
-          
-          # Create Zip
+          zip -r qserv-${{ runner.os }}.zip release_bundle/
+
+      # 6. Package (Unix)
+      - name: Package Release (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release_bundle
+          cp build/qserv release_bundle/
+          mkdir -p release_bundle/GeoIP
+          cp GeoIP/GeoIP.dat release_bundle/GeoIP/
+          cp GeoIP/GeoLiteCity.dat release_bundle/GeoIP/
+          cp -r config/ release_bundle/
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
       # 7. Upload
@@ -94,3 +95,4 @@ jobs:
           tag_name: latest
           body: "Automated build of QServ."
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
