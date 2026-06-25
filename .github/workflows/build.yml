@@ -58,7 +58,7 @@ jobs:
             mingw-w64-x86_64-zlib
             zip
 
-      # 2. Build Project (Windows)
+      # 2. Build Project
       - name: Build Project (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -66,31 +66,36 @@ jobs:
           cmake -B build -G Ninja
           cmake --build build --config Release --parallel 4
 
-      # 3. Build Project (Unix)
       - name: Build Project (Unix)
         if: runner.os != 'Windows'
         run: |
           cmake -B build
           cmake --build build --config Release --parallel 4
 
-      # 4. Package Release
-      - name: Package Release
-        shell: bash
+      # 3. Package Release
+      - name: Package Release (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           mkdir -p release_bundle/GeoIP
-          
-          # Handle OS-specific executable extension
-          EXE=""
-          if [[ "${{ runner.os }}" == "Windows" ]]; then EXE=".exe"; fi
-          
-          cp build/qserv$EXE release_bundle/
+          cp build/qserv.exe release_bundle/
           cp GeoIP/*.dat release_bundle/GeoIP/
           cp -r config/ release_bundle/
           cp stats-webserver.py release_bundle/
-          
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
-      # 5. Upload
+      - name: Package Release (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release_bundle/GeoIP
+          cp build/qserv release_bundle/
+          cp GeoIP/*.dat release_bundle/GeoIP/
+          cp -r config/ release_bundle/
+          cp stats-webserver.py release_bundle/
+          zip -r qserv-${{ runner.os }}.zip release_bundle/
+
+      # 4. Upload
       - name: Upload Release
         uses: softprops/action-gh-release@v1
         with:
