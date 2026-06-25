@@ -229,6 +229,53 @@ namespace server {
     std::vector<_flagrun> _flagruns;
     int _newflagrun = 0;
     
+ 	void _loadflagruns()
+ 	{
+ 	    _flagruns.clear();
+ 	    stream *f = openutf8file("config/flagruns.cfg", "r");
+ 	    if(!f) return;
+ 	    
+ 	    string line;
+ 	    while(f->getline(line, sizeof(line)))
+ 	    {
+ 	        if(line[0] == '/' || line[0] == '\0') continue; 
+ 	
+ 	        
+ 	        char *p = line;
+ 	        // Skip "flagrun "
+ 	        if(strncmp(p, "flagrun ", 8) != 0) continue;
+ 	        p += 8;
+ 	
+ 	        int mode = atoi(p);
+ 	        while(*p && *p != ' ') p++; // skip mode
+ 	        while(*p == ' ') p++;       // skip spaces
+ 	
+ 	        // Extract Map (everything inside the first set of quotes)
+ 	        if(*p == '\"') p++;
+ 	        char map[256];
+ 	        int m = 0;
+ 	        while(*p && *p != '\"' && m < 255) map[m++] = *p++;
+ 	        map[m] = '\0';
+ 	        if(*p == '\"') p++;
+ 	        while(*p == ' ') p++;
+ 	
+ 	        int time = atoi(p);
+ 	        while(*p && *p != ' ') p++; // skip time
+ 	        while(*p == ' ') p++;       // skip spaces
+ 	
+ 	        // Extract Name (everything inside the next set of quotes)
+ 	        if(*p == '\"') p++;
+ 	        char name[256];
+ 	        int n = 0;
+ 	        while(*p && *p != '\"' && n < 255) name[n++] = *p++;
+ 	        name[n] = '\0';
+ 	
+ 	        // Add to vector
+ 	        _flagruns.push_back({(std::string)map, mode, (std::string)name, time});
+ 	    }
+ 	    delete f;
+ 	}
+    
     void _doflagrun(clientinfo *ci, int timeused)
     {
         if(timeused <= 500)
@@ -879,7 +926,7 @@ namespace server {
     {
         smapname[0] = '\0';
         resetitems();
-        if(serverflagruns) execfile("./config/flagruns.cfg", false);
+        if(serverflagruns) _loadflagruns();
         
         int mc = 22; int gm;
         for(int i = 0; i <= mc; i++) {
