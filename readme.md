@@ -152,7 +152,7 @@ config/server-init.cfg
 28786
 ```
 
-3. Unzip qserv-win.zip, put qserv.exe in QServSqlite folder, then start the server by opening:
+3. Download one of the up to date binaries from the releases section: https://github.com/deathstar/QServSqlite/releases, unzip it and run:
 
 ```text
 qserv.exe
@@ -171,7 +171,7 @@ Forward the following UDP ports to the internal IP address of your server host:
 28785
 28786
 ```
-Unzip qserv-linux.zip or qserv-osx.zip, put the qserv binary in the QServSqlite folder, then run:
+Download one of the up to date binaries from the releases section: https://github.com/deathstar/QServSqlite/releases, unzip it and run:
 
 ```bash
 ./qserv
