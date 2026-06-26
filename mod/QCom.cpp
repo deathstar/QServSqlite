@@ -1505,40 +1505,55 @@ namespace server {
 	          commandList);
 	}
     
-#include <iostream>
-#include <string>
-#include <stdio.h>
-#include <time.h>
-    QSERV_CALLBACK localtime_cmd(p) {
-        time_t rawtime; 
-        time(&rawtime);
-        defformatstring(localtime_str)("Local server time: %s", ctime(&rawtime));
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, localtime_str);
-    }
+	#include <iostream>
+	#include <string>
+	#include <stdio.h>
+	#include <time.h>
+	QSERV_CALLBACK localtime_cmd(p) {
+    	time_t rawtime; 
+    	time(&rawtime);
+    	char *time_str = ctime(&rawtime);
 
-   	QSERV_CALLBACK time_cmd(p) {
-        if(CMD_SA) {
-            int UTCOffset = atoi(args[1]);
-            time_t rawtime;
-            struct tm * ptm;
-            time(&rawtime);
-            ptm = gmtime(&rawtime);
+    	// ctime returns a pointer to a static string; check if it exists
+    	if(time_str) {
+        	// Strip the trailing newline character usually added by ctime
+        	size_t len = strlen(time_str);
+        	if(len > 0 && time_str[len-1] == '\n') time_str[len-1] = '\0';
+
+        	defformatstring(localtime_str)("Local server time: %s", time_str);
+        	sendf(CMD_SENDER, 1, "ris", N_SERVMSG, localtime_str);
+    	} else {
+        	sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "Error: Could not retrieve local server time.");
+    	}
+	}
+
+	QSERV_CALLBACK time_cmd(p) {
+    	if(CMD_SA) {
+        	int UTCOffset = atoi(args[1]);
+        	time_t rawtime;
+        	time(&rawtime);
+        	struct tm *ptm = gmtime(&rawtime);
+
+        	// gmtime returns NULL if the time cannot be represented
+        	if(ptm) {
+            	// Safe hour calculations
+            	int std_hour = (ptm->tm_hour + UTCOffset) % 24;
+            	if(std_hour < 0) std_hour += 24;
             
-            // FIX: Wrap hour additions to handle negative target hours securely
-            int std_hour = (ptm->tm_hour + UTCOffset) % 24;
-            if(std_hour < 0) std_hour += 24;
-            
-            int dst_hour = (ptm->tm_hour + UTCOffset + 1) % 24;
-            if(dst_hour < 0) dst_hour += 24;
+            	int dst_hour = (ptm->tm_hour + UTCOffset + 1) % 24;
+            	if(dst_hour < 0) dst_hour += 24;
     
-            defformatstring(TimeOffset)("Time for UTC (%d): %2d:%02d\n", UTCOffset, std_hour, ptm->tm_min);
-            defformatstring(TimeOffsetDST)("Time for UTC (%d) with Daylight Savings Time: %2d:%02d\n", UTCOffset, dst_hour, ptm->tm_min);
-            defformatstring(TimeOutput)("%s%s", TimeOffset, TimeOffsetDST);
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, TimeOutput);
-        } else {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
-        }
-    }
+            	defformatstring(TimeOffset)("Time for UTC (%d): %02d:%02d", UTCOffset, std_hour, ptm->tm_min);
+            	defformatstring(TimeOffsetDST)(" | DST: %02d:%02d", dst_hour, ptm->tm_min);
+            
+            	sendf(CMD_SENDER, 1, "ris", N_SERVMSG, concatstring(TimeOffset, TimeOffsetDST));
+        	} else {
+            	sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "Error: Could not retrieve UTC time.");
+        	}
+    	} else {
+        	sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
+    	}
+	}
 
     QSERV_CALLBACK bunny_cmd(p) {
         if(strlen(fulltext) > 0) {
