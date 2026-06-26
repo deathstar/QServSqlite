@@ -90,37 +90,37 @@ namespace server {
         **/
         ncommand("help", "\f7View command list or command usage. \nUsage: #help for command list and #help <name-of-command> for usage", PRIV_NONE, help_cmd, 1);
         ncommand("me", "\f7Echo your name and message to everyone. Usage: #me <message>", PRIV_NONE, me_cmd, 0);
-        ncommand("stats", "\f7View the stats of a player or yourself. Usage: #stats <cn> or #stats", PRIV_NONE, stats_cmd, 1);
+        ncommand("stats", "\f7View the stats of a player or yourself. Usage: #stats <name|cn> or #stats", PRIV_NONE, stats_cmd, 1);
         ncommand("localtime", "\f7Get the local time of the server. Usage: #localtime", PRIV_ADMIN, localtime_cmd, 0);
         ncommand("ver", "\f7Get the current QServ version. Usage: #ver", PRIV_NONE, getversion_cmd, 0);
         ncommand("uptime", "\f7View how long the server has been up for. Usage: #uptime", PRIV_NONE, uptime_cmd, 0);
         ncommand("invadmin", "\f7Claim invisible administrator. Usage: #invadmin <adminpass>", PRIV_NONE, invadmin_cmd, 1);
-        ncommand("cheater", "\f7Accuses someone of cheating and alerts moderators. Usage: #cheater <cn>", PRIV_NONE, cheater_cmd, 1);
-        ncommand("whois", "\f7View information about a player. Usage: #whois <cn>", PRIV_NONE, whois_cmd, 1);
+        ncommand("cheater", "\f7Accuses someone of cheating and alerts moderators. Usage: #cheater <name|cn>", PRIV_NONE, cheater_cmd, 1);
+        ncommand("whois", "\f7View information about a player. Usage: #whois <name|cn>", PRIV_NONE, whois_cmd, 1);
         ncommand("time", "\f7View the current time. Usage: #time <UTC Offset Number>", PRIV_MASTER, time_cmd, 1);
-        ncommand("pm", "\f7Send a private message to someone. Usage #pm <cn> <private message>", PRIV_NONE, pm_cmd, 2);
+        ncommand("pm", "\f7Send a private message to someone. Usage #pm <name|cn> <private message>", PRIV_NONE, pm_cmd, 2);
         ncommand("callops", "\f7Call all operators on the Internet Relay Chat Server. Usage: #callops", PRIV_NONE, callops_cmd, 0);
         ncommand("mapsucks", "\f7Votes for an intermission to change the map. Usage: #mapsucks", PRIV_NONE, mapsucks_cmd, 0);
-        ncommand("forgive", "\f7Forgive a player for teamkilling or just in general. Usage: #forgive <cn>", PRIV_NONE, forgive_cmd, 1);
+        ncommand("forgive", "\f7Forgive a player for teamkilling or just in general. Usage: #forgive <name|cn>", PRIV_NONE, forgive_cmd, 1);
         ncommand("intermission", "\f7Force an intermission. Usage: #intermission", PRIV_MASTER, forceintermission_cmd, 0);
         ncommand("echo", "\f7Broadcast a message to all players. Usage: #echo <message>", PRIV_MASTER, echo_cmd, 1);
-        ncommand("sendprivs", "\f7Share master/admin with another player. Usage: #sendprivs <cn>", PRIV_MASTER, sendprivs_cmd, 1);
+        ncommand("sendprivs", "\f7Share master/admin with another player. Usage: #sendprivs <name|cn>", PRIV_MASTER, sendprivs_cmd, 1);
         ncommand("bunny", "\f7Broadcast a helper message to all players. Usage: #bunny <helpmessage>", PRIV_ADMIN, bunny_cmd, 0);
-        ncommand("revokepriv", "\f7Revoke the privileges of a player. Usage: #revokepriv <cn>", PRIV_ADMIN, revokepriv_cmd, 1);
-        ncommand("forcespectator", "\f7Forces a player to become a spectator. Usage: #forcespectator <cn>", PRIV_ADMIN, forcespectator_cmd, 1);
-        ncommand("unspectate", "\f7Removes a player from spectator mode. Usage: #unspectate <cn>", PRIV_ADMIN, unspectate_cmd, 1);
-        ncommand("mute", "\f7Mutes a client. Usage #mute <cn>", PRIV_ADMIN, mute_cmd, 1);
-        ncommand("unmute", "\f7Unmutes a client. Usage #mute <cn>", PRIV_ADMIN, unmute_cmd, 1);
-        ncommand("editmute", "\f7Stops a client from editing. Usage #editmute <cn>", PRIV_ADMIN, editmute_cmd, 1);
-        ncommand("uneditmute", "\f7Allows a client to edit again. Usage #uneditmute <cn>", PRIV_ADMIN, uneditmute_cmd, 1);
-        ncommand("togglelockspec", "\f7Forces a client to be locked in spectator mode. Usage #togglelockspec <cn>", PRIV_ADMIN, togglelockspec_cmd, 1);
+        ncommand("revokepriv", "\f7Revoke the privileges of a player. Usage: #revokepriv <name|cn>", PRIV_ADMIN, revokepriv_cmd, 1);
+        ncommand("forcespectator", "\f7Forces a player to become a spectator. Usage: #forcespectator <name|cn", PRIV_ADMIN, forcespectator_cmd, 1);
+        ncommand("unspectate", "\f7Removes a player from spectator mode. Usage: #unspectate <name|cn>", PRIV_ADMIN, unspectate_cmd, 1);
+        ncommand("mute", "\f7Mutes a client. Usage #mute <name|cn>", PRIV_ADMIN, mute_cmd, 1);
+        ncommand("unmute", "\f7Unmutes a client. Usage #unmute <name|cn>", PRIV_ADMIN, unmute_cmd, 1);
+        ncommand("editmute", "\f7Stops a client from editing. Usage #editmute <name|cn>", PRIV_ADMIN, editmute_cmd, 1);
+        ncommand("uneditmute", "\f7Allows a client to edit again. Usage #uneditmute <name|cn>", PRIV_ADMIN, uneditmute_cmd, 1);
+        ncommand("togglelockspec", "\f7Forces a client to be locked in spectator mode. Usage #togglelockspec <name|cn>", PRIV_ADMIN, togglelockspec_cmd, 1);
         ncommand("ban", "\f7Bans a client. Usage: #ban <cn> <ban time in minutes>", PRIV_ADMIN, ban_cmd, 2);
-        ncommand("pban", "\f7Permanently bans a client. Not listed on #listbans. Use #clearbans to clear all. Usage: #pban <cn>", PRIV_ADMIN, pban_cmd, 1);
+        ncommand("pban", "\f7Permanently bans a client. Not listed on #listbans. Use #clearbans to clear all. Usage: #pban <name|cn>", PRIV_ADMIN, pban_cmd, 1);
         ncommand("clearbans", "\f7Clears all bans and pbans. Usage: #clearpbans", PRIV_ADMIN, clearpbans_cmd, 0);
         ncommand("teampersist", "\f7Toggle persistant teams on or off. Usage: #teampersist <0/1> (0 for off, 1 for on)", PRIV_MASTER, teampersist_cmd, 1);
         ncommand("allowmaster", "\f7Allows clients to claim master. Usage: #allowmaster <0/1> (0 for off, 1 for on)", PRIV_ADMIN, allowmaster_cmd, 1);
-        ncommand("kill", "\f7Brutally murders a player. Usage: #kill <cn>", PRIV_ADMIN, kill_cmd, 1);
-        ncommand("rename", "\f7Renames a player. Usage: #rename <cn> <new name>", PRIV_ADMIN, rename_cmd, 2);
+        ncommand("kill", "\f7Brutally murders a player. Usage: #kill <name|cn>", PRIV_ADMIN, kill_cmd, 1);
+        ncommand("rename", "\f7Renames a player. Usage: #rename <name|cn> <new name>", PRIV_ADMIN, rename_cmd, 2);
         ncommand("addkey", "\f7Adds an authkey to the server. \nUsage: #addkey <name> <domain> <public key> <privilege>", PRIV_ADMIN, addkey_cmd, 4);
         ncommand("listbans", "\f7Lists all bans. Usage: #listbans", PRIV_ADMIN, listbans_cmd, 0);
         ncommand("reloadconfig","\f7Reloads server-init.cfg configuration. Usage: #reloadconfig", PRIV_ADMIN, reloadconfig_cmd, 0);
@@ -150,79 +150,88 @@ namespace server {
     }
     
     QSERV_CALLBACK whois_cmd(p) {
-        if(!CMD_SA) {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
-            return;
-        }
-    
-        const char* target_arg = args[1];
-        int cn = -1;
-    
-        if(isdigit(target_arg[0])) {
-            cn = atoi(target_arg);
-        } else {
-            cn = GetClientNumByName(target_arg);
-        }
-    
-        if(cn == -1) {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player name not found.");
-            return;
-        }
-        if(cn == -2) {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Multiple players have that name. Use their CN instead!");
-            return;
-        }
-    
-        if(cn < 0 || cn >= MAXCLIENTS) {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Invalid client number specified. Use \f2/showclientnum 1 \f3then press tab.");
-            return;
-        }
-    
-        clientinfo *ci = qs.getClient(cn);
-        if(!ci || !ci->connected) {
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player not connected");
-            return;
-        }
-    
-        char *ip = toip(cn);
-        const char *location = NULL;
-        char loc_buf[255] = {0};
-    
-        if(!strcmp("127.0.0.1", ip)) {
-            location = "localhost";
-        } else {
-            location = qs.cgip(ip).c_str();
-            if(!location || location[0] == '\0') {
-                snprintf(loc_buf, sizeof(loc_buf), "%s", "Unknown Location");
-            }
-        }
-        if(location) {
-            snprintf(loc_buf, sizeof(loc_buf), "%s", location);
-        }
-    
-        // Strip any rogue trailing newlines or carriage returns from the local database location
-        int len = strlen(loc_buf);
-        while(len > 0 && (loc_buf[len - 1] == '\n' || loc_buf[len - 1] == '\r')) {
-            loc_buf[len - 1] = '\0';
-            len--;
-        }
-    
-        const char *privname = "None";
-        if(ci->privilege == PRIV_MASTER) privname = "Master";
-        else if(ci->privilege == PRIV_ADMIN) privname = "Admin";
-    
-        // Rebuilt string format to cleanly run side-by-side without linebreaks
+    if(!CMD_SA) {
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
+        return;
+    }
+
+    const char* target_arg = args[1];
+    int cn = -1;
+
+    if(isdigit(target_arg[0])) {
+        cn = atoi(target_arg);
+    } else {
+        cn = GetClientNumByName(target_arg);
+    }
+
+    if(cn == -1) {
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player name not found.");
+        return;
+    }
+    if(cn == -2) {
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Multiple players have that name. Use their CN instead!");
+        return;
+    }
+
+    if(cn < 0 || cn >= MAXCLIENTS) {
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Invalid client number specified. Use \f2/showclientnum 1 \f3then press tab.");
+        return;
+    }
+
+    clientinfo *ci = qs.getClient(cn);
+    if(!ci || !ci->connected) {
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player not connected");
+        return;
+    }
+
+    // Determine privilege name
+    const char *privname = "None";
+    if(ci->privilege == PRIV_MASTER) privname = "Master";
+    else if(ci->privilege == PRIV_ADMIN) privname = "Admin";
+
+    // Replicate stats_cmd location logic
+    if(qs.enable_HTTP_geo && strcmp("127.0.0.1", ci->ip) != 0) {
+        int sender_cn = CMD_SENDER;
+        ::std::string target_ip(ci->ip);
+        ::std::string p_name = privname; // Copy for thread
+
+        ::std::thread([sender_cn, target_ip, p_name, ci]() {
+            try {
+                http::Request req("http://ip-api.com/line/" + target_ip + "?fields=city,regionName,country");
+                const http::Response res = req.send("GET");
+                ::std::string s(res.body.begin(), res.body.end());
+                RString(s, "\n", " > ");
+                UTFEncode(s);
+                while(!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ' || s.back() == '>')) s.pop_back();
+                if(s.length() >= 2 && s.substr(s.length() - 2) == " >") s.erase(s.length() - 2);
+                
+                defformatstring(async_msg)("\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s", 
+                    colorname(ci), ci->clientnum, p_name.c_str(), s.c_str());
+
+                std::lock_guard<std::mutex> lock(client_mutex);
+                clientinfo *sender = qs.getClient(sender_cn);
+                if(sender && sender->connected) {
+                    sendf(sender_cn, 1, "ris", N_SERVMSG, async_msg);
+                }
+            } catch (...) { return; }
+        }).detach();
+    } else {
+        ::std::string location_str = qs.cgip(ci->ip); 
+        const char *loc = location_str.c_str();
+        
         defformatstring(whoismsg)(
             "\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s",
-            colorname(ci), ci->clientnum, privname, loc_buf
+            colorname(ci), ci->clientnum, privname, (loc && loc[0] ? loc : "Unknown Location")
         );
         sendf(CMD_SENDER, 1, "ris", N_SERVMSG, whoismsg);
-    
-        if(CMD_SCI.privilege >= PRIV_ADMIN) {
-            defformatstring(adminipmsg)("\f7[Whois Privileged Access] \f0%s\f7's IP address: \f1%s", colorname(ci), ip);
-            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, adminipmsg);
-        }
     }
+
+    // IP display for Admins
+    if(CMD_SCI.privilege >= PRIV_ADMIN) {
+        defformatstring(adminipmsg)("\f7[Whois Privileged Access] \f0%s\f7's IP address: \f1%s", colorname(ci), ci->ip);
+        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, adminipmsg);
+    }
+}
     
     QSERV_CALLBACK autosendmap_cmd(p) {
         if(CMD_SA) {
