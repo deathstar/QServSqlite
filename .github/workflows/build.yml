@@ -89,9 +89,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p release_bundle/GeoIP
+          mkdir -p release_bundle/config  # Explicitly create this
           cp build/qserv release_bundle/
           cp GeoIP/*.dat release_bundle/GeoIP/
-          cp -r config/ release_bundle/
+          # Copy only the files inside config/ to the new directory
+          cp config/*.cfg release_bundle/config/
           cp stats-webserver.py release_bundle/
           zip -r qserv-${{ runner.os }}.zip release_bundle/
 
