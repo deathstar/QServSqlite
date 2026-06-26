@@ -2630,7 +2630,6 @@ namespace server {
         if(smode) smode->cleanup();
         aiman::clearai();
         votedIPs.clear(); //mapsucks votes
-    	//stats_saved = false;
         mapsucksvotes = 0;
         gamemode = mode;
         gamemillis = 0;
@@ -2639,6 +2638,7 @@ namespace server {
         nextexceeded = 0;
         copystring(smapname, s);
         loaditems();
+		player_session_state.clear(); 
         scores.shrink(0);
         teamkills.shrink(0);
         int mapsucksvotes = 0;
