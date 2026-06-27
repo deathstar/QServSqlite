@@ -15,6 +15,7 @@ on:
       - 'sqlite/**'
       - 'config/**'
       - 'CMakeLists.txt'
+      - 'qserv.sh'
       - '.github/workflows/build.yml'
 
 permissions:
