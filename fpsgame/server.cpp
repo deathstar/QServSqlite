@@ -130,6 +130,7 @@ namespace server {
 	VAR(healamount, 1, 1000, INT_MAX);               //how much hp a teammate receives when shot if enable_healteammates is true
 	VAR(serverflagruns, 0, 0, 1); 					 //enable/disable flagrun message/storage
 	VAR(banflagrunhackers, 0, 0, 1); 				 //autoban flag runners that score in <500ms
+	VAR(friendlyfire, 0, 1, 1); 				     //enable/disable damage to teammates 
 
     bool firstblood;
     bool enableautosendmap = true;
@@ -3206,7 +3207,9 @@ best.add(clients[i]); \
             	if(enable_passflag) {
                    ctfmode.dopassflagsequence(actor, target);
                	}
-               damage = 0;
+			   if(!friendlyfire) {
+                   damage = 0;
+			   }
         }
         if(!nodamage) {
             ts.dodamage(damage);
