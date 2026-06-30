@@ -1969,12 +1969,7 @@ namespace server {
              gs.gunselect, GUN_PISTOL-GUN_SG+1, &gs.ammo[GUN_SG]);
          gs.lastspawn = gamemillis;
      }
-    
-    bool is_insta(int mode)
-    {
-        return (gamemodes[mode - STARTGAMEMODE].flags & M_INSTA) != 0;
-    }
-    
+		
     void sendwelcome(clientinfo *ci)
     {
         packetbuf p(MAXTRANS, ENET_PACKET_FLAG_RELIABLE);
