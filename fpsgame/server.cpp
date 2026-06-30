@@ -1103,6 +1103,8 @@ namespace server {
     	team_good_count = 0;
     	team_evil_count = 0;
         loopv(clients) {
+			if (clients[i] == NULL) continue;
+			if (clients[i]->team == NULL) continue;
             if (clients[i]->state.state == CS_SPECTATOR) continue;
             if (strcmp(clients[i]->team, "good") == 0) team_good_count++;
             else if (strcmp(clients[i]->team, "evil") == 0) team_evil_count++;
@@ -4796,15 +4798,8 @@ best.add(clients[i]); \
       		       (!smode || smode->canchangeteam(ci, ci->team, text)) && addteaminfo(text))
       		    {
       		        if(ci->state.state == CS_ALIVE) suicide(ci);
-      		
-      		        if(strcmp(ci->team, "good") == 0) team_good_count--;
-      		        else if(strcmp(ci->team, "evil") == 0) team_evil_count--;
-      		
       		        copystring(ci->team, text);
-      		
-      		        if(strcmp(ci->team, "good") == 0) team_good_count++;
-      		        else if(strcmp(ci->team, "evil") == 0) team_evil_count++;
-      		
+					update_team_counters();
       		        aiman::changeteam(ci);
       		        sendf(-1, 1, "riisi", N_SETTEAM, sender, ci->team, ci->state.state==CS_SPECTATOR ? -1 : 0);
       		    }
