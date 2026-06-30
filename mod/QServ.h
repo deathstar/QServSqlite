@@ -6,7 +6,7 @@
 #include "fpsgame.h"
 #include "../GeoIP/libGeoIP/GeoIP.h"
 #include <time.h>
-#include <pthread.h>
+#include <mutex>
 #include "../ircbot/ircbot.h"
 #include <iostream>
 #include <sstream>
@@ -59,14 +59,13 @@ namespace server {
             QServ(bool, int, char);
             ~QServ();
             
-            pthread_mutex_t qserv_mutex;
+           	static std::recursive_mutex qserv_mutex; 
+
             int instacoop_gamelimit;
 
             bool initgeoip(const char*);
             bool initcitygeoip(const char*);
             char *congeoip(const char*);
-            //char *citygeoip(const char*);
-            //char *regiongeoip(const char*);
         
             std::string cgip(const char*);
 
