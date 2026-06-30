@@ -48,7 +48,7 @@ QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that signi
 
 ## 🛡️ Administration & Moderation
 
-- 40+ administrative commands
+- 40+ server commands
 - Permanent bans
 - IP bans
 - Selective unbanning
@@ -100,7 +100,7 @@ QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that signi
 - Banner announcements
 - Custom bot names
 - Lag detection
-- Private mode toggle
+- Single player private mode disable toggle
 - Default gamemode selection
 - Default map selection
 - Administrator call system
