@@ -11,7 +11,7 @@
 #include <../sqlite/sqlite3.h>
 
 //includes geoip handling, command system and a lot of useful tools
-
+std::recursive_mutex server::QServ::qserv_mutex;
 namespace server {
     clientinfo QServ::m_lastCI;
     bool m_olangcheck = false;
@@ -22,7 +22,6 @@ namespace server {
         m_maxolangwarns = maxolangwarns;
         m_cmdprefix = cmdprefix;
         m_db = NULL;
-        pthread_mutex_init(&qserv_mutex, NULL);
         }
 
         QServ::~QServ() { 
@@ -30,7 +29,7 @@ namespace server {
         }
 
         sqlite3 *QServ::getDB() {
-        pthread_mutex_lock(&qserv_mutex);
+        std::lock_guard<std::recursive_mutex> lock(qserv_mutex);
         if(!m_db) {
             if(sqlite3_open("playerinfo.db", &m_db) != SQLITE_OK) {
                 fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(m_db));
@@ -42,7 +41,6 @@ namespace server {
             	sqlite3_busy_timeout(m_db, 1000); 
         	}
         }
-        pthread_mutex_unlock(&qserv_mutex);
         return m_db;
         }
 
@@ -294,7 +292,7 @@ namespace server {
         if(!ci || !text || text[0] == '\0') return false;
     
         // 2. Thread-safety: Lock the gate to ensure state synchronization
-        pthread_mutex_lock(&qserv_mutex);
+        std::lock_guard<std::recursive_mutex> lock(qserv_mutex);
     
         setSender(ci->clientnum);
         setlastCI(ci);
@@ -309,16 +307,19 @@ namespace server {
             char *token = NULL;
             
             // 3. Secure Tokenizer: Strictly bound argc to less than the size of args array (20)
-            token = strtok(text, " ");
-            while(token != NULL && argc < 20) {
-                args[argc] = token;
-                argc++;
-                token = strtok(NULL, " ");
-            }
+			// 1. Create a copy strictly for tokenization, this prevents mem leaking of "text"
+			char temp_copy[1024] = {0};
+			copystring(temp_copy, text, sizeof(temp_copy)); 
+
+			token = strtok(temp_copy, " "); 
+			while(token != NULL && argc < 20) {
+   				args[argc] = token;
+    			argc++;
+    			token = strtok(NULL, " ");
+			}
             
             // 4. Validation Gate: If input was empty or contained only spaces, drop safely
             if(argc == 0 || !args[0]) {
-                pthread_mutex_unlock(&qserv_mutex); // Always unlock before early returns!
                 return false;
             }
             
@@ -347,17 +348,16 @@ namespace server {
                     
                     setlastSA(fargs);
                     exeCommand(command, args, argc);
-                    
-                    pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
+
                     return false;
                 } else {
                     sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Insufficient permission");
-                    pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
+
                     return false;
                 }
             } else {
                 sendf(ci->clientnum, 1, "ris", N_SERVMSG, "\f3Error: Command not found. Use \f2\"#help\" \f3for a list of commands.");
-                pthread_mutex_unlock(&qserv_mutex); // Unlock before exit path
+
                 return false;
             }
         } else {
@@ -368,7 +368,6 @@ namespace server {
             }
         }
         
-        pthread_mutex_unlock(&qserv_mutex); // Final unlock path
         return false;
     }
     
@@ -457,171 +456,105 @@ namespace server {
     }
     
 	void QServ::getLocation(clientinfo *ci) {
-	    // 1. Core Defensive Gate: Don't execute if client or player state is completely null
 	    if (!ci) return;
 	
-	    // 2. Thread Synchronization: Lock briefly to safely read global state and client IP
-	    pthread_mutex_lock(&qserv_mutex);
+	    // 1. SCOPE: Lock briefly to copy volatile data out of the shared clientinfo object
+	    std::string ip;
+	    std::string client_name;
+	    {
+	        std::lock_guard<std::recursive_mutex> lock(qserv_mutex);
+	        char *ip_raw = toip(ci->clientnum);
+	        if (!ip_raw) return;
+	        ip = ip_raw;
+	        client_name = (ci->name[0] != '\0') ? ci->name : "Unknown";
+	    } // Lock automatically releases here
 	
-	    char *ip_raw = toip(ci->clientnum);
-	    if(!ip_raw) {
-	        pthread_mutex_unlock(&qserv_mutex);
-	        return;
-	    }
-	    
-	    // Copy volatile variables to local stack to minimize time spent inside the lock
-	    std::string ip = ip_raw;
-	    std::string client_name = (ci->name[0] != '\0') ? ci->name : "Unknown";
-	
-	    // Get our localhost ip for comparison exclusion
+	    // 2. Perform Network/Heavy operations OUTSIDE the lock
 	    char buf[64] = ""; 
-	
 	#ifndef _WIN32
 	    struct ifaddrs *myaddrs = NULL, *ifa = NULL;
 	    void *in_addr = NULL;
-	
-	    if(getifaddrs(&myaddrs) != 0) {
-	        perror("getifaddrs");
-	        pthread_mutex_unlock(&qserv_mutex); 
-	        return; 
-	    }
-	
-	    for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
-	        if (ifa->ifa_addr == NULL) continue;
-	        if (!(ifa->ifa_flags & IFF_UP)) continue;
-	
-	        switch (ifa->ifa_addr->sa_family) {
-	            case AF_INET: {
+	    if (getifaddrs(&myaddrs) == 0) {
+	        for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+	            if (ifa->ifa_addr != NULL && (ifa->ifa_flags & IFF_UP) && ifa->ifa_addr->sa_family == AF_INET) {
 	                struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
-	                in_addr = &s4->sin_addr;
-	                break;
+	                if (inet_ntop(AF_INET, &s4->sin_addr, buf, sizeof(buf))) break;
 	            }
-	            default: continue;
 	        }
-	
-	        if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf))) {
-	            printf("[WARNING]: %s: inet_ntop failed!\n", ifa->ifa_name);
-	        }
+	        freeifaddrs(myaddrs);
 	    }
-	    if (myaddrs) freeifaddrs(myaddrs);
 	#endif
 	
-	    // Pre-declare variables for the local GeoIP block
 	    std::string geo_string_holder;
 	    const char *location = NULL;
-	    int type = 0;
-	    int typeconsole = 0;
+	    int type = 0, typeconsole = 0;
+	    const char *types[] = { " connected from \f3unknown", " \f7connected from \f3unknown", sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0" };
+	    const char *typesconsole[] = { " connected from unknown", " connected from unknown/localhost", sendnearstatement ? " connected near " : " connected from " };
+	    char lmsg[512] = {0}, pmsg[255] = {0};
 	
-	    const char *types[] = {
-	        " connected from \f3unknown",
-	        " \f7connected from \f3unknown", 
-	        sendnearstatement ? " \f7connected near\f0" : " \f7connected from\f0"
-	    };
-	
-	    const char *typesconsole[] = {
-	        " connected from unknown",
-	        " connected from unknown/localhost",
-	        sendnearstatement ? " connected near " : " connected from "
-	    };
-	
-	    char lmsg[512] = {0};
-	    char pmsg[255] = {0};
-	
-	    // --- STRATEGIC SEPARATION: ONLY run local GeoIP if HTTP geo is disabled ---
-	    if(!enable_HTTP_geo && ip.length() > 2) {
-	        char localhost_s1[] = "127.0.0.1";
-	        char localhost_s2[] = "172.16";
-	        char localhost_s3[] = "192.168";
-	
-	        if(!strcmp(ip.c_str(), localhost_s1) || !strcmp(buf, ip.c_str()) || isPartOf(ip.c_str(), localhost_s2) || isPartOf(ip.c_str(), localhost_s3)) {
+	    if (!enable_HTTP_geo && ip.length() > 2) {
+	        if (!strcmp(ip.c_str(), "127.0.0.1") || !strcmp(buf, ip.c_str()) || isPartOf(ip.c_str(), "172.16") || isPartOf(ip.c_str(), "192.168")) {
 	            location = "localhost";
-	        }
-	        else {
-	            // ONLY querying the MaxMind API/binary when actually needed
+	        } else {
 	            geo_string_holder = cgip(ip.c_str()); 
 	            location = geo_string_holder.c_str(); 
 	        }
 	
-	        if(!location || !strcmp("(null)", location) || is_unknown_ip) {
-	            type = 0;
-	            typeconsole = 0;
-	        } else if(!strcmp(ip.c_str(), localhost_s1) || !strcmp(buf, ip.c_str()) || isPartOf(ip.c_str(), localhost_s2) || isPartOf(ip.c_str(), localhost_s3)) {
-	            type = 1;
-	            typeconsole = 1;
+	        if (!location || !strcmp("(null)", location) || is_unknown_ip) {
+	            type = 0; typeconsole = 0;
+	        } else if (!strcmp(ip.c_str(), "127.0.0.1") || !strcmp(buf, ip.c_str()) || isPartOf(ip.c_str(), "172.16") || isPartOf(ip.c_str(), "192.168")) {
+	            type = 1; typeconsole = 1;
 	        } else {
-	            type = 2;
-	            typeconsole = 2;
+	            type = 2; typeconsole = 2;
 	            snprintf(lmsg, sizeof(lmsg), "%s %s", types[type], location);
 	            snprintf(pmsg, sizeof(pmsg), "%s%s", typesconsole[typeconsole], location);
 	        }
 	    }
 	
-	    // 4. THE UNLOCK: Open loop continues instantly
-	    pthread_mutex_unlock(&qserv_mutex);
-	
 	    std::string s;
 	    bool http_completed = false;
-	
-	    // --- HTTP PATH (Completely standalone and isolated) ---
-	    if(enable_HTTP_geo && ip.length() > 2) {
+	    if (enable_HTTP_geo && ip.length() > 2) {
 	        try {
-	            // Check if the connecting player is on localhost
 	            if (ip == "127.0.0.1" || ip == "::1") {
 	                s = "Localhost";
 	                http_completed = true;
-	            } 
-	            else {
-	                defformatstring(r_str)("%s%s%s", "http://ip-api.com/line/", ip.c_str(), "?fields=city,regionName,country");
+	            } else {
+	                defformatstring(r_str)("http://ip-api.com/line/%s?fields=city,regionName,country", ip.c_str());
 	                http::Request req(r_str);
-	                
 	                const http::Response res = req.send("GET"); 
 	                s.assign(res.body.begin(), res.body.end());
-	                
 	                RString(s, "\n", " > ");
 	                UTFEncode(s);
-	                if (s.length() >= 2) {
-	                    s.erase(s.length() - 2, 2);
-	                }
+	                if (s.length() >= 2) s.erase(s.length() - 2, 2);
 	                http_completed = true;
 	            }
-	        }
-	        catch (const std::exception& e) {
-	            std::cerr << "no geographical location information available for IP: " << ip << '\n';
-	        }
-	    }
-	
-	    // 5. RE-LOCK THE MUTEX: Safely print outputs
-	    pthread_mutex_lock(&qserv_mutex);
-	
-	    // Verify the client still exists
-	    bool is_still_connected = false;
-	    loopv(clients) {
-	        if(clients[i] == ci) {
-	            is_still_connected = true;
-	            break;
+	        } catch (const std::exception& e) {
+	            std::cerr << "no geo information for IP: " << ip << '\n';
 	        }
 	    }
 	
-	    if(ip.length() > 2 && is_still_connected) {
-	        if(!enable_HTTP_geo) {
-	            defformatstring(msg)("\f0%s\f7%s", client_name.c_str(), (type < 2) ? types[type] : lmsg);
-	            defformatstring(nocolormsg)("%s%s", client_name.c_str(), (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
-	            
-	            out(ECHO_SERV, "%s", msg);
-	            out(ECHO_NOCOLOR, "%s", nocolormsg);
-	            geoip_record_copied = true;
-	            is_unknown_ip = false; 
-	        }
-	        else if(enable_HTTP_geo && http_completed) {
-	            defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
-	            out(ECHO_SERV, "%s", msg);
+	    // 3. SCOPE: Lock again ONLY for printing/updating shared states
+	    {
+	        std::lock_guard<std::recursive_mutex> lock(qserv_mutex);
+	        bool is_still_connected = false;
+	        loopv(clients) { if (clients[i] == ci) { is_still_connected = true; break; } }
 	
-	            defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
-	            out(ECHO_CONSOLE, "%s", cmsg);
+	        if (ip.length() > 2 && is_still_connected) {
+	            if (!enable_HTTP_geo) {
+	                defformatstring(msg)("\f0%s\f7%s", client_name.c_str(), (type < 2) ? types[type] : lmsg);
+	                defformatstring(nocolormsg)("%s%s", client_name.c_str(), (typeconsole < 2) ? typesconsole[typeconsole] : pmsg);
+	                out(ECHO_SERV, "%s", msg);
+	                out(ECHO_NOCOLOR, "%s", nocolormsg);
+	                geoip_record_copied = true;
+	                is_unknown_ip = false; 
+	            } else if (enable_HTTP_geo && http_completed) {
+	                defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
+	                out(ECHO_SERV, "%s", msg);
+	                defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
+	                out(ECHO_CONSOLE, "%s", cmsg);
+	            }
 	        }
 	    }
-	
-	    pthread_mutex_unlock(&qserv_mutex); 
 	}
     
     void QServ::checkMsg(int cn) {
