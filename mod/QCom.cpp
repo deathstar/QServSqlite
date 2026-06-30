@@ -79,6 +79,8 @@ namespace server {
 	extern int gamemillis;
 	extern std::vector<_flagrun> _flagruns;
 	extern void showflagrun(int cn); 
+	extern void cmd_showLeaderboard(int cn);
+	extern void cmd_sendplayerstats(int cn);
 
     void initCmds() {
         /**
@@ -90,7 +92,7 @@ namespace server {
         **/
         ncommand("help", "\f7View command list or command usage. \nUsage: #help for command list and #help <name-of-command> for usage", PRIV_NONE, help_cmd, 1);
         ncommand("me", "\f7Echo your name and message to everyone. Usage: #me <message>", PRIV_NONE, me_cmd, 0);
-        ncommand("stats", "\f7View the stats of a player or yourself. Usage: #stats <name|cn> or #stats", PRIV_NONE, stats_cmd, 1);
+        ncommand("stats", "\f7View the stats of a player or yourself for this session. Usage: #stats <name|cn> or #stats", PRIV_NONE, stats_cmd, 1);
         ncommand("localtime", "\f7Get the local time of the server. Usage: #localtime", PRIV_ADMIN, localtime_cmd, 0);
         ncommand("ver", "\f7Get the current QServ version. Usage: #ver", PRIV_NONE, getversion_cmd, 0);
         ncommand("uptime", "\f7View how long the server has been up for. Usage: #uptime", PRIV_NONE, uptime_cmd, 0);
@@ -134,11 +136,23 @@ namespace server {
         ncommand("autosendmap", "\f7Automatically sends the map to connecting clients. Usage #autosendmap <1/0> (0 for off, 1 for on)", PRIV_MASTER, autosendmap_cmd, 1);
         ncommand("loadmap", "\f7Loads a map stored on the server. Usage #loadmap <mapname>", PRIV_ADMIN, loadmap_cmd, 1);
         ncommand("flagrun", "\f7Shows the best flagrun record for this map, and your personal best. Usage #flagrun", PRIV_NONE, flagrun_cmd, 0);
+        ncommand("leaderboard", "\f7Shows the top 5 players with the best lifetime stats. Command update cooldown: 30 seconds. Usage #leaderboard", PRIV_NONE, leaderboard_cmd, 0);
+        ncommand("allstats", "\f7Shows your lifetime stats. Command update cooldown: 30 seconds. Usage #allstats", PRIV_NONE, allstats_cmd, 0);
     }
     
     QSERV_CALLBACK flagrun_cmd(p) 
 	{
     	server::showflagrun(CMD_SENDER);
+	}
+	
+	QSERV_CALLBACK leaderboard_cmd(p) 
+	{
+    	server::cmd_showLeaderboard(CMD_SENDER);
+	}
+	
+	QSERV_CALLBACK allstats_cmd(p) 
+	{
+    	server::cmd_sendplayerstats(CMD_SENDER);
 	}
     
     QSERV_CALLBACK loadmap_cmd(p) {
@@ -150,88 +164,90 @@ namespace server {
     }
     
     QSERV_CALLBACK whois_cmd(p) {
-    if(!CMD_SA) {
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
-        return;
+        if(!CMD_SA) {
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, CMD_DESC(cid));
+            return;
+        }
+    
+        const char* target_arg = args[1];
+        int cn = -1;
+    
+        if(isdigit(target_arg[0])) {
+            cn = atoi(target_arg);
+        } else {
+            cn = GetClientNumByName(target_arg);
+        }
+    
+        if(cn == -1) {
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player name not found.");
+            return;
+        }
+        if(cn == -2) {
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Multiple players have that name. Use their CN instead!");
+            return;
+        }
+    
+        if(cn < 0 || cn >= MAXCLIENTS) {
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Invalid client number specified. Use \f2/showclientnum 1 \f3then press tab.");
+            return;
+        }
+    
+        clientinfo *ci = qs.getClient(cn);
+        if(!ci || !ci->connected) {
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player not connected");
+            return;
+        }
+    
+        // Determine privilege name
+        const char *privname = "None";
+        if(ci->privilege == PRIV_MASTER) privname = "Master";
+        else if(ci->privilege == PRIV_ADMIN) privname = "Admin";
+    
+        if(qs.enable_HTTP_geo && strcmp("127.0.0.1", ci->ip) != 0) {
+            // --- DATA EXTRACTION FOR THREAD SAFETY ---
+            int sender_cn = CMD_SENDER;
+            ::std::string target_ip(ci->ip);
+            ::std::string p_name = privname;
+            int target_cn = ci->clientnum;
+            ::std::string target_colorname(colorname(ci)); 
+    
+            ::std::thread([sender_cn, target_ip, p_name, target_cn, target_colorname]() {
+                try {
+                    http::Request req("http://ip-api.com/line/" + target_ip + "?fields=city,regionName,country");
+                    const http::Response res = req.send("GET");
+                    ::std::string s(res.body.begin(), res.body.end());
+                    RString(s, "\n", " > ");
+                    UTFEncode(s);
+                    while(!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ' || s.back() == '>')) s.pop_back();
+                    if(s.length() >= 2 && s.substr(s.length() - 2) == " >") s.erase(s.length() - 2);
+                    
+                    defformatstring(async_msg)("\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s", 
+                        target_colorname.c_str(), target_cn, p_name.c_str(), s.c_str());
+    
+                    std::lock_guard<std::mutex> lock(client_mutex);
+                    clientinfo *sender = qs.getClient(sender_cn);
+                    if(sender && sender->connected) {
+                        sendf(sender_cn, 1, "ris", N_SERVMSG, async_msg);
+                    }
+                } catch (...) { return; }
+            }).detach();
+        } else {
+            ::std::string location_str = qs.cgip(ci->ip); 
+            const char *loc = location_str.c_str();
+            
+            defformatstring(whoismsg)(
+                "\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s",
+                colorname(ci), ci->clientnum, privname, (loc && loc[0] ? loc : "Unknown Location")
+            );
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, whoismsg);
+        }
+    
+        // IP display for Admins
+        if(CMD_SCI.privilege >= PRIV_ADMIN) {
+            defformatstring(adminipmsg)("\f7[Whois Privileged Access] \f0%s\f7's IP address: \f1%s", colorname(ci), ci->ip);
+            sendf(CMD_SENDER, 1, "ris", N_SERVMSG, adminipmsg);
+        }
     }
-
-    const char* target_arg = args[1];
-    int cn = -1;
-
-    if(isdigit(target_arg[0])) {
-        cn = atoi(target_arg);
-    } else {
-        cn = GetClientNumByName(target_arg);
-    }
-
-    if(cn == -1) {
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player name not found.");
-        return;
-    }
-    if(cn == -2) {
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Multiple players have that name. Use their CN instead!");
-        return;
-    }
-
-    if(cn < 0 || cn >= MAXCLIENTS) {
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Invalid client number specified. Use \f2/showclientnum 1 \f3then press tab.");
-        return;
-    }
-
-    clientinfo *ci = qs.getClient(cn);
-    if(!ci || !ci->connected) {
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, "\f3Error: Player not connected");
-        return;
-    }
-
-    // Determine privilege name
-    const char *privname = "None";
-    if(ci->privilege == PRIV_MASTER) privname = "Master";
-    else if(ci->privilege == PRIV_ADMIN) privname = "Admin";
-
-    // Replicate stats_cmd location logic
-    if(qs.enable_HTTP_geo && strcmp("127.0.0.1", ci->ip) != 0) {
-        int sender_cn = CMD_SENDER;
-        ::std::string target_ip(ci->ip);
-        ::std::string p_name = privname; // Copy for thread
-
-        ::std::thread([sender_cn, target_ip, p_name, ci]() {
-            try {
-                http::Request req("http://ip-api.com/line/" + target_ip + "?fields=city,regionName,country");
-                const http::Response res = req.send("GET");
-                ::std::string s(res.body.begin(), res.body.end());
-                RString(s, "\n", " > ");
-                UTFEncode(s);
-                while(!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ' || s.back() == '>')) s.pop_back();
-                if(s.length() >= 2 && s.substr(s.length() - 2) == " >") s.erase(s.length() - 2);
-                
-                defformatstring(async_msg)("\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s", 
-                    colorname(ci), ci->clientnum, p_name.c_str(), s.c_str());
-
-                std::lock_guard<std::mutex> lock(client_mutex);
-                clientinfo *sender = qs.getClient(sender_cn);
-                if(sender && sender->connected) {
-                    sendf(sender_cn, 1, "ris", N_SERVMSG, async_msg);
-                }
-            } catch (...) { return; }
-        }).detach();
-    } else {
-        ::std::string location_str = qs.cgip(ci->ip); 
-        const char *loc = location_str.c_str();
-        
-        defformatstring(whoismsg)(
-            "\f7[Whois] \f0%s \f7| CN: \f2%d \f7| Privileges: \f3%s \f7| Location: \f6%s",
-            colorname(ci), ci->clientnum, privname, (loc && loc[0] ? loc : "Unknown Location")
-        );
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, whoismsg);
-    }
-
-    // IP display for Admins
-    if(CMD_SCI.privilege >= PRIV_ADMIN) {
-        defformatstring(adminipmsg)("\f7[Whois Privileged Access] \f0%s\f7's IP address: \f1%s", colorname(ci), ci->ip);
-        sendf(CMD_SENDER, 1, "ris", N_SERVMSG, adminipmsg);
-    }
-}
     
     QSERV_CALLBACK autosendmap_cmd(p) {
         if(CMD_SA) {
