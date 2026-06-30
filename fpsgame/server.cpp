@@ -1,5 +1,6 @@
 #include <vector>
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <exception>
 #include <stdio.h>
@@ -11,6 +12,9 @@
 #include "../mod/QServ.h"
 #include <map>
 #include <csignal>
+#ifdef _WIN32
+    #define strcasecmp _stricmp
+#endif
 
 ::std::vector<::std::string> votedIPs;
 ::std::vector<::std::string> editMutedIPs;
@@ -130,7 +134,7 @@ namespace server {
 	VAR(healamount, 1, 1000, INT_MAX);               //how much hp a teammate receives when shot if enable_healteammates is true
 	VAR(serverflagruns, 0, 0, 1); 					 //enable/disable flagrun message/storage
 	VAR(banflagrunhackers, 0, 0, 1); 				 //autoban flag runners that score in <500ms
-	VAR(friendlyfire, 0, 1, 1); 				     //enable/disable damage to teammates 
+	VAR(friendlyfire, 0, 0, 1); 				     //enable/disable damage to teammates 
 
     bool firstblood;
     bool enableautosendmap = true;
@@ -226,60 +230,57 @@ namespace server {
 	bool is_flagrun_match(const _flagrun &fr, int current_mode, const char *current_map)
 	{
 	    int cat = get_ctf_category(current_mode);
-	    if(cat == 0) return false; // This mode isn't tracked for flagruns!
+	    if(cat == 0) return false; 
 	    
 	    return (get_ctf_category(fr.gamemode) == cat) && (fr.map == current_map);
 	}
     
     std::vector<_flagrun> _flagruns;
     int _newflagrun = 0;
-    
- 	void _loadflagruns()
- 	{
- 	    _flagruns.clear();
- 	    stream *f = openutf8file("config/flagruns.cfg", "r");
- 	    if(!f) return;
- 	    
- 	    string line;
- 	    while(f->getline(line, sizeof(line)))
- 	    {
- 	        if(line[0] == '/' || line[0] == '\0') continue; 
- 	
- 	        
- 	        char *p = line;
- 	        // Skip "flagrun "
- 	        if(strncmp(p, "flagrun ", 8) != 0) continue;
- 	        p += 8;
- 	
- 	        int mode = atoi(p);
- 	        while(*p && *p != ' ') p++; // skip mode
- 	        while(*p == ' ') p++;       // skip spaces
- 	
- 	        // Extract Map (everything inside the first set of quotes)
- 	        if(*p == '\"') p++;
- 	        char map[256];
- 	        int m = 0;
- 	        while(*p && *p != '\"' && m < 255) map[m++] = *p++;
- 	        map[m] = '\0';
- 	        if(*p == '\"') p++;
- 	        while(*p == ' ') p++;
- 	
- 	        int time = atoi(p);
- 	        while(*p && *p != ' ') p++; // skip time
- 	        while(*p == ' ') p++;       // skip spaces
- 	
- 	        // Extract Name (everything inside the next set of quotes)
- 	        if(*p == '\"') p++;
- 	        char name[256];
- 	        int n = 0;
- 	        while(*p && *p != '\"' && n < 255) name[n++] = *p++;
- 	        name[n] = '\0';
- 	
- 	        // Add to vector
- 	        _flagruns.push_back({(std::string)map, mode, (std::string)name, time});
- 	    }
- 	    delete f;
- 	}
+
+	void _loadflagruns()
+	{
+	    _flagruns.clear();
+	    stream *f = openutf8file("config/flagruns.cfg", "r");
+	    if(!f) return;
+	
+	    string line;
+	    while(f->getline(line, sizeof(line)))
+	    {
+	        // 1. Skip comments and empty lines
+	        if(line[0] == '/' || line[0] == '\0') continue;
+	
+	        std::string sline(line);
+	        std::stringstream ss(sline);
+	        std::string header, mapname, playername;
+	        int mode, timeused;
+	
+	        // 2. Validate header and extract fields
+	        // Format: flagrun [mode] "[map]" [time] "[name]"
+	        if (!(ss >> header >> mode)) continue; 
+	        if (header != "flagrun") continue;
+	
+	        // 3. Extract mapname (handles potential spaces in quotes)
+	        if (!std::getline(ss >> std::ws, mapname, '\"')) continue; // Skip initial quote
+	        if (!std::getline(ss, mapname, '\"')) continue;          // Get map content
+	
+	        // 4. Extract time
+	        if (!(ss >> timeused)) continue;
+	
+	        // 5. Extract playername
+	        if (!std::getline(ss >> std::ws, playername, '\"')) continue;
+	        if (!std::getline(ss, playername, '\"')) continue;
+	
+	        // 6. Final safety check: validate the data before pushing
+	        if (mode < 0 || mode > 50 || timeused <= 0 || mapname.empty()) {
+	            printf("DEBUG: Skipping malformed flagrun entry: %s\n", line);
+	            continue;
+	        }
+	
+	        _flagruns.push_back({mapname, mode, playername, timeused});
+	    }
+	    delete f;
+	}
     
     void _doflagrun(clientinfo *ci, int timeused)
     {
@@ -435,7 +436,7 @@ namespace server {
         }
     
         char msg[1024];
-        msg[0] = '\0'; // Initialize to empty string
+        msg[0] = '\0'; 
         
         local_concat(msg, sizeof(msg), "Flagrun for \f0%s \f7(\f1%s\f7): ", smapname, modename(gamemode, "unknown"));
         
@@ -787,7 +788,18 @@ namespace server {
     }
     
     void *newclientinfo() { return new clientinfo; }
-    void deleteclientinfo(void *ci) { delete (clientinfo *)ci; }
+    void deleteclientinfo(void *ci) 
+    { 
+        clientinfo *c = (clientinfo *)ci;
+        
+        if(c->authkickreason) 
+        {
+            delete[] c->authkickreason;
+            c->authkickreason = NULL;
+        }
+        
+        delete c; 
+    }
     
     clientinfo *getinfo(int n)
     {
@@ -845,8 +857,11 @@ namespace server {
     {
         int acc = 0;
         clientinfo *ci = getinfo(cn);
-        if(ci && gun>0 && gun<=NUMGUNS)
-            acc = ci->state.guninfo[gun].damage*100/max(ci->state.guninfo[gun].shotdamage, 1);
+        if(!ci || gun <= 0 || gun > NUMGUNS)
+    	{
+        	return 0; 
+    	}
+        acc = ci->state.guninfo[gun].damage*100/max(ci->state.guninfo[gun].shotdamage, 1);
         return(acc);
     }
     
@@ -871,34 +886,21 @@ namespace server {
         return false;
     }
     
-    string blkmsg[3] = {"fuck", "shit", "cunt"};
-    char textcmd(const char *a, const char *text){
-        for (int b=0; b<strlen(a); b++) {
-            if (text[b+1] != a[b]) {
-                return false;
+    const char *blkmsg[] = {"fuck", "shit", "cunt"}; 
+    bool is_blocked(const char *text) {    
+        for (int i = 0; i < 3; i++) {
+            if (strstr(text, blkmsg[i]) != NULL) {
+                return true;
             }
         }
-        if(text[strlen(a)+1] != ' ' && text[strlen(a)+1] != '\0') {
-            for (int l=0; l<3; l++) {
-                if (strcmp(blkmsg[l], a)) {
-                    return true;
-                    break;
-                }
-            }
-            return false;
-        }
-        return true;
+        return false;
     }
-    void textblk(const char *b, char *text, clientinfo *ci){
-        bool bad=false;
-        for (int a=0; a<strlen(text); a++) {
-            if(textcmd(b, text+a-1)) bad=true;
-        }
-        if(bad){
-            int n = randomMT() % 7 + 0; 
+    
+    void textblk(char *text, clientinfo *ci) {
+        if (is_blocked(text)) {
+            int n = randomMT() % 7; 
             defformatstring(d)("\f%i%s \f0%s!", n, sweartext, ci->name);
             sendservmsg(d);
-            bad=false;
         }
     }
     
@@ -907,7 +909,7 @@ namespace server {
     void handle_signal(int sig)
     {
         printf("Signal %d received. Requesting graceful shutdown...\n", sig);
-        shutdown_requested = 1; // Signal the main loop to break safely
+        shutdown_requested = 1; 
     }
     
     #ifdef _WIN32
@@ -918,18 +920,21 @@ namespace server {
         if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT)
         {
             printf("Windows shutdown signal received. Requesting graceful shutdown...\n");
-            shutdown_requested = 1; // Signal the main loop to break safely
+            shutdown_requested = 1; 
             return TRUE;
         }
         return FALSE;
     }
     #endif
     
+    void load_pbans(); void verifybans();
     void serverinit()
     {
         smapname[0] = '\0';
         resetitems();
         if(serverflagruns) _loadflagruns();
+        load_pbans();
+        verifybans();
         
         int mc = 22; int gm;
         for(int i = 0; i <= mc; i++) {
@@ -1090,6 +1095,18 @@ namespace server {
             t->frags = 0;
         }
         return t;
+    }
+    
+    int team_good_count = 0;
+	int team_evil_count = 0;
+    void update_team_counters() {
+    	team_good_count = 0;
+    	team_evil_count = 0;
+        loopv(clients) {
+            if (clients[i]->state.state == CS_SPECTATOR) continue;
+            if (strcmp(clients[i]->team, "good") == 0) team_good_count++;
+            else if (strcmp(clients[i]->team, "evil") == 0) team_evil_count++;
+        }
     }
     
     clientinfo *choosebestclient(float &bestrank)
@@ -1520,7 +1537,7 @@ namespace server {
         void *pubkey;
         int privilege;
         
-        userinfo() : pubkey(NULL), privilege(PRIV_NONE) {}
+        userinfo() : userkey(), pubkey(NULL), privilege(PRIV_NONE) {} 
         ~userinfo() { delete[] name; delete[] desc; if(pubkey) freepubkey(pubkey); }
     };
     hashset<userinfo> users;
@@ -1542,7 +1559,7 @@ namespace server {
     COMMAND(adduser, "ssss");
     void clearusers()
     {
-        users.clear();
+        users.clear(); 
     }
     COMMAND(clearusers, "");
     
@@ -2176,11 +2193,13 @@ namespace server {
     
         if(!out[0]) strncpy(out, "unnamed", outlen-1), out[outlen-1] = '\0';
     } 
-
+    
 	void savestats(clientinfo *ci)
 	{
-	    if(!ci || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS || !ci->name[0]) return;
+	    if(!ci || !ci->connected || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS || !ci->name[0]) return;
 	    if(ci->state.aitype != AI_NONE || ci->state.state == CS_SPECTATOR) return;
+	    
+	    std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
 	    
 	    // Gatekeeper
 	    auto &state = player_session_state[ci->ip];
@@ -2191,21 +2210,21 @@ namespace server {
 	    int s_flags = max(0, ci->state.flags);
 	    if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
 	
-	    // Use a static flag to prevent concurrent database writes from the same client
-	    static bool is_saving = false; 
+	    //prevent concurrent writes from same client on /reconnect
+	    static bool is_saving = false;  
 	    if(is_saving) return; 
 	    
-	    struct Guard { 
-	        bool &flag; 
-	        Guard(bool &f) : flag(f) { flag = true; }
-	        ~Guard() { flag = false; }
-	    } guard(is_saving);
+		struct SaveGuard { 
+        	bool &flag; 
+        	SaveGuard(bool &f) : flag(f) { flag = true; }
+        	~SaveGuard() { flag = false; }
+    	} save_guard(is_saving);
 	
 	    sqlite3 *db = qs.getDB();
 	    if(!db) return;
 	
 	    // Set a busy timeout so SQLite waits 5 seconds for a lock to release
-	    sqlite3_busy_timeout(db, 5000); 
+	    sqlite3_busy_timeout(db, 200); 
 	
 	    char key[64];
 	    make_name_key_utf8(ci->name, key, sizeof(key));
@@ -2253,8 +2272,9 @@ namespace server {
     
    	void sendplayerstats(clientinfo *ci)
     {
-        if(!ci || ci->state.aitype != AI_NONE) return;
-        if(!ci->name[0]) return;
+		if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
+        
+        std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
 
         char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
@@ -2308,6 +2328,110 @@ namespace server {
         		savestats(ci);
         	}
     	}
+	}
+	
+	//we init a new db handle for this command only to prevent crashing
+	void cmd_sendplayerstats(int cn)
+	{
+	    clientinfo *ci = (clientinfo *)getclientinfo(cn);
+	    if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
+	    
+	    {   //mutex scope
+	    	std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
+	    	    
+	    	// Save stats before showing if 30 seconds have passed
+	    	if (totalmillis - ci->last_update_time_sp > 30000) 
+	    	{
+	        	if (ci) server::savestats(ci);
+	        	ci->last_update_time_sp = totalmillis;
+	    	}
+	    }
+	
+	    sqlite3 *db;
+	    
+	    if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK) return;
+	
+	    const char *sql = "SELECT FRAGS, DEATHS, FLAGS FROM PLAYERINFO WHERE NAME=?;";
+	    
+	    sqlite3_stmt *stmt = nullptr;
+	    if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+	    {
+	        sqlite3_bind_text(stmt, 1, ci->name, -1, SQLITE_TRANSIENT);
+	        
+	        if(sqlite3_step(stmt) == SQLITE_ROW)
+	        {
+	            int frags  = sqlite3_column_int(stmt, 0);
+	            int deaths = sqlite3_column_int(stmt, 1);
+	            int flags  = sqlite3_column_int(stmt, 2);
+	            
+	            float kd = (deaths > 0) ? (float)frags / (float)deaths : (float)frags;
+	    
+	            defformatstring(msg)(
+	                "Lifetime Stats for \f0%s\f7: Frags \f1%d\f7, Deaths \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
+	                ci->name, frags, deaths, flags, kd 
+	            );
+	            sendf(cn, 1, "ris", N_SERVMSG, msg);
+	        }
+	        else 
+	        {
+	            sendf(cn, 1, "ris", N_SERVMSG, "Stats not found.");
+	        }
+	    }
+	    else {
+	        fprintf(stderr, "DB Error: %s\n", sqlite3_errmsg(db));
+	    }
+	    
+	    sqlite3_finalize(stmt);
+	    sqlite3_close(db);
+	}
+	
+	void cmd_showLeaderboard(int cn)
+	{	    
+		clientinfo *ci = (clientinfo *)getclientinfo(cn);
+	    if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
+	    
+	    std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
+	    
+	    // Save stats before showing if 30 seconds have passed
+	    if (totalmillis - ci->last_update_time_lb > 30000) 
+	    {
+	        if (ci) server::savestats(ci);
+	        ci->last_update_time_lb = totalmillis;
+	    }
+	
+	    sqlite3 *db;
+	    if(sqlite3_open("playerinfo.db", &db) != SQLITE_OK) return;
+	
+	    const char *sql = "SELECT NAME, FRAGS, DEATHS, FLAGS, KD FROM PLAYERINFO WHERE FRAGS > 0 ORDER BY KD DESC LIMIT 5;";
+	    
+	    sqlite3_stmt *stmt = nullptr;
+	    if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
+	    {
+	        bool found = false;
+	        int rank = 1;
+	        
+	        while(sqlite3_step(stmt) == SQLITE_ROW)
+	        {
+	            found = true;
+	            const unsigned char *name_raw = sqlite3_column_text(stmt, 0);
+	            const char *name = name_raw ? (const char *)name_raw : "Unknown";
+	            int frags  = sqlite3_column_int(stmt, 1);
+	            int deaths = sqlite3_column_int(stmt, 2);
+	            int flags  = sqlite3_column_int(stmt, 3);
+	            
+	            float kd = (deaths > 0) ? (float)frags / (float)deaths : (float)frags;
+	            
+
+	            defformatstring(line)("%d. \f0%s\f7 - Frags: \f1%d\f7, Deaths: \f3%d\f7 (K/D: %.2f), Flags: \f5%d\f7", 
+	                                  rank++, name, frags, deaths, kd, flags);
+	            sendf(cn, 1, "ris", N_SERVMSG, line);
+	        }
+	        
+	        if(!found) sendf(cn, 1, "ris", N_SERVMSG, "No stats available yet.");
+	    }
+	    
+	    sqlite3_finalize(stmt);
+	    sqlite3_close(db);
 	}
     
     void sendinitclient(clientinfo *ci)
@@ -2619,6 +2743,8 @@ namespace server {
        
     VAR(defaultgamespeed, 10, 100, 1000);
 	extern int mapsucksvotes;
+	void save_pbans();
+	void clear_pban_strings();
     void changemap(const char *s, int mode)
     {
         //can cause excess flood on loop i mapchange for IRC
@@ -2639,10 +2765,11 @@ namespace server {
         nextexceeded = 0;
         copystring(smapname, s);
         loaditems();
-		player_session_state.clear(); 
+		player_session_state.clear(); // clear for savestats
+		save_pbans();
+		clear_pban_strings(); //periodically clear strings
         scores.shrink(0);
         teamkills.shrink(0);
-        int mapsucksvotes = 0;
         firstblood = false;
         loopv(clients)
         {
@@ -2850,6 +2977,7 @@ best.add(clients[i]); \
     
     void printbeststats()
     {
+    	if (clients.empty()) return;
         vector<clientinfo *> best;
         int besti;
         char msg[MAXTRANS];
@@ -3080,15 +3208,6 @@ best.add(clients[i]); \
             if(msg[0]) sendservmsg(msg);
         }
     }
-    int number_of(char* team)
-    {
-        int n = 0;
-        loopv(clients)
-        {
-            if ( isteam(clients[i]->team, team) ) n++;
-        }
-        return n;
-    }
 
     VAR(overtime, 0, 0, 1);
 
@@ -3191,6 +3310,7 @@ best.add(clients[i]); \
     
     void dodamage(clientinfo *target, clientinfo *actor, int damage, int gun, const vec &hitpush = vec(0, 0, 0))
     {
+    	if(!actor || !target || !actor->connected || !target->connected || !target->state.o.x) return;
         actor->state.guninfo[gun].damage += damage; //damage by gun for #stats
         gamestate &ts = target->state;
         if(actor != target && m_teammode && isteam(actor->team, target->team)) {
@@ -3250,9 +3370,19 @@ best.add(clients[i]); \
             
             if(fragvalue>0)
             {
-                int friends = 0, enemies = 0; // note: friends also includes the fragger
-                if(m_teammode) loopv(clients) if(strcmp(clients[i]->team, actor->team)) enemies++; else friends++;
-                else { friends = 1; enemies = clients.length()-1; }
+                int friends = 0, enemies = 0;
+                if(m_teammode) 
+                {
+                    bool is_good = (strcmp(actor->team, "good") == 0);
+                        
+                    friends = is_good ? team_good_count : team_evil_count;
+                    enemies = is_good ? team_evil_count : team_good_count;
+                }
+                else 
+                { 
+                	friends = 1; 
+                    enemies = max((int)clients.length() - 1, 1); 
+                }
                 actor->state.effectiveness += fragvalue*friends/float(max(enemies, 1));
                 if(totalmillis - actor->state.lastfragmillis < (int64_t)multifragmillis) {
                     actor->state.multifrags++;
@@ -3492,6 +3622,10 @@ best.add(clients[i]); \
             } else return;
         }
     }
+    void clearbanners() {
+    	loopv(banners) delete[] banners[i];
+    	banners.shrink(0); 
+	}
     
     void cleartimedevents(clientinfo *ci)
     {
@@ -3527,6 +3661,7 @@ best.add(clients[i]); \
                 if(curtime)
                 {
                     updateBanner();
+                    if(instacoop && gamemillis >= instacoop_gamelimit && !interm) startintermission(); 
                     loopv(sents) if(sents[i].spawntime) //spawn entities when timer reached
                     {
                         int oldtime = sents[i].spawntime;
@@ -3695,13 +3830,14 @@ best.add(clients[i]); \
 		ci->state.deaths = 0;
 		ci->state.flags = 0;
 		ci->state.timeplayed = 0;
+		ci->last_update_time_sp = 0;
+		ci->last_update_time_lb = 0;
 		
         ci->sessionid = (rnd(0x1000000)*((totalmillis%10000)+1))&0xFFFFFF;
         ci->local = true;
         connects.add(ci);
         sendservinfo(ci);
-        player_session_state[ci->ip] = {false}; // Reset the gate for this IP
-        //fprintf(stderr, "DEBUG: Registered IP %s for session\n", ci->ip);
+        player_session_state[ci->ip] = {false}; // clear for savestats
     }
     
     void localdisconnect(int n)
@@ -3726,6 +3862,7 @@ best.add(clients[i]); \
     {
     	clientinfo *ci = (n >= 0 && n < MAXCLIENTS) ? getinfo(n) : NULL;
 		if (!ci) return DISC_NONE;
+		verifybans();
 		bool is_new_connection = (ci->connectmillis == 0);
     	copystring(ci->ip, ipstr);
     	
@@ -3733,6 +3870,10 @@ best.add(clients[i]); \
 		ci->state.deaths = 0;
 		ci->state.flags = 0;
 		ci->state.timeplayed = 0;
+		ci->last_update_time_sp = 0;
+		ci->last_update_time_lb = 0;
+		
+		update_team_counters();
 		
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
@@ -3767,8 +3908,8 @@ best.add(clients[i]); \
    
         sendservinfo(ci);
         
-        player_session_state[ci->ip] = {false}; // Reset the gate for this IP
-        //fprintf(stderr, "DEBUG: Registered IP %s for session\n", ci->ip);
+        player_session_state[ci->ip] = {false}; // reset savestats gate
+
        
         return DISC_NONE;
     }
@@ -3795,24 +3936,20 @@ best.add(clients[i]); \
                sendf(-1, 1, "ri2", N_CDIS, n);
                clients.removeobj(ci);
                aiman::removeai(ci);
+               update_team_counters();
                if(!numclients(-1, false, true)) noclients(); // bans clear when server empties
                if(ci->local) checkpausegame();
                ci->isEditMuted = false; 
                ci->isSpecLocked = false;
                ci->isMuted = false;
-               out(ECHO_CONSOLE, "%s disconnected", colorname(ci));
-               
-              //fprintf(stderr, "DEBUG: clientdisconnect() TRIGGERED for Client: %s | IP: %s\n", ci->name, ci->ip);
-              //fprintf(stderr, "DEBUG: Erasing IP %s. Was saved? %d\n", ci->ip, player_session_state[ci->ip].saved_already);
-               
+               out(ECHO_CONSOLE, "%s disconnected", colorname(ci));           
            }
            else connects.removeobj(ci);
        }
     
     int reserveclients() { return 3; }
     
-    extern void verifybans();
-    
+    vector<char *> pban_strings; //file storage
     struct banlist
     {
         vector<ipmask> bans;
@@ -3829,7 +3966,6 @@ best.add(clients[i]); \
             ipmask ban;
             ban.parse(ipname);
             bans.add(ban);
-            verifybans();
         }
     } ipbans, gbans;
     
@@ -3841,24 +3977,74 @@ best.add(clients[i]); \
     
     void verifybans()
     {
-        loopvrev(clients)
+        vector<int> to_disconnect;
+        loopv(clients)
         {
             clientinfo *ci = clients[i];
             if(ci->state.aitype != AI_NONE || ci->local || ci->privilege >= PRIV_ADMIN) continue;
-            if(checkbans(getclientip(ci->clientnum))) disconnect_client(ci->clientnum, DISC_IPBAN);
+            if(checkbans(getclientip(ci->clientnum))) 
+            {
+                to_disconnect.add(ci->clientnum);
+            }
+        }
+    
+        loopv(to_disconnect)
+        {
+            disconnect_client(to_disconnect[i], DISC_IPBAN);
         }
     }
     
-    void ipban(const char *ipname) {
-        ipbans.add(ipname);
+    void save_pbans()
+    {
+        FILE *f = fopen("config/pbans.cfg", "w");
+        if(!f) return;
+        loopv(ipbans.bans)
+        {
+            fprintf(f, "%s\n", pban_strings[i]);
+        }
+        fclose(f);
+    }
+    
+    void load_pbans()
+    {
+        FILE *f = fopen("config/pbans.cfg", "r");
+        if(!f) return;
+        char line[100];
+        while(fgets(line, sizeof(line), f))
+        {
+            line[strcspn(line, "\r\n")] = 0; 
+            ipbans.add(line);
+            pban_strings.add(newstring(line)); 
+        }
+        fclose(f);
+    }
+    
+    void ipban(const char *ipname) 
+    {
+        ipbans.add(ipname); 
+        pban_strings.add(newstring(ipname)); 
+        save_pbans();
+        verifybans(); 
+    }
+    
+    void clear_pban_strings()
+    {
+        loopv(pban_strings) 
+        {
+            delete[] pban_strings[i]; 
+        }
+        pban_strings.shrink(0);
     }
     
     void clearpbans() {
-        ipbans.clear();
-    }
+    	ipbans.clear();
+    	clear_pban_strings();
+    	save_pbans(); // Overwrite the file with an empty list
+	}
     
-    ICOMMAND(clearpbans, "", (), ipbans.clear());
-    ICOMMAND(ipban, "s", (const char *ipname), ipbans.add(ipname));
+    
+    ICOMMAND(clearpbans, "", (), clearpbans());
+    ICOMMAND(ipban, "s", (const char *ipname), ipban(ipname));
     
     void sendkickbanlist(int cn)
     {
@@ -4041,7 +4227,7 @@ best.add(clients[i]); \
     {
         logoutf("connected to master server");
         // clear gbans on connect (not on disconnect) to prevent ms outages from clearing all bans
-        clearpbans();
+        //clearpbans();
     }
 
     void masterdisconnected()
@@ -4072,6 +4258,7 @@ best.add(clients[i]); \
     void receivefile(int sender, uchar *data, int len)
     {
         clientinfo *ci = getinfo(sender);
+        if(!ci || !ci->connected) return;
         if(ci->isEditMuted) 
         {
             sendf(sender, 1, "ris", N_SERVMSG, "\f3Error: Map uploads are disabled while you are edit-muted.");
@@ -4159,7 +4346,6 @@ best.add(clients[i]); \
     
     void parsepacket(int sender, int chan, packetbuf &p) //has to parse exactly each byte of the packet
     {
-        if(instacoop && gamemillis >= instacoop_gamelimit && !interm) startintermission(); //instacoop intermission initializer
         if(sender<0 || p.packet->flags&ENET_PACKET_FLAG_UNSEQUENCED || chan > 2) return;
         char text[MAXTRANS];
         int type;
@@ -4243,6 +4429,10 @@ best.add(clients[i]); \
             {
                 int pcn = getuint(p);
                 p.get();
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 uint flags = getuint(p);
                 clientinfo *cp = getinfo(pcn);
                 if(cp && pcn != sender && cp->ownernum != sender) cp = NULL;
@@ -4352,7 +4542,13 @@ best.add(clients[i]); \
                 
             case N_MAPCRC:
             {
-                getstring(text, p);
+            	string text;
+    			getstring(text, p);
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
+    			text[MAXSTRLEN-1] = '\0';
                 int crc = getint(p);
                 if(!ci) break;
                 if(strcmp(text, smapname))
@@ -4439,6 +4635,10 @@ best.add(clients[i]); \
             {
                 shotevent *shot = new shotevent;
                 shot->id = getint(p);
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 shot->millis = cq ? cq->geteventmillis(gamemillis, shot->id) : 0;
                 shot->gun = getint(p);
                 loopk(3) shot->from[k] = getint(p)/DMF;
@@ -4467,6 +4667,10 @@ best.add(clients[i]); \
             {
                 explodeevent *exp = new explodeevent;
                 int cmillis = getint(p);
+            	if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 exp->millis = cq ? cq->geteventmillis(gamemillis, cmillis) : 0;
                 exp->gun = getint(p);
                 exp->id = getint(p);
@@ -4498,7 +4702,9 @@ best.add(clients[i]); \
                 
             case N_TEXT:
             {
-                getstring(text, p);
+            	string text;
+				getstring(text, p);
+				text[MAXSTRLEN-1] = '\0'; 
                 filtertext(text, text, true, true);
                 if(totalmillis - ci->lasttext < (int64_t)spammillis) {
                     ci->spamlines++;
@@ -4519,9 +4725,7 @@ best.add(clients[i]); \
                     if(!qs.handleTextCommands(ci, text)) break;
                 }
                 else {
-                    for (int a=0; a<(strlen(*blkmsg)-1); a++) {
-                        textblk(blkmsg[a], text, ci);
-                    }
+                    textblk(text, ci);
                     if(!ci->isMuted) {
                         QUEUE_AI;
                         QUEUE_INT(N_TEXT);
@@ -4549,7 +4753,9 @@ best.add(clients[i]); \
                 
             case N_SAYTEAM:
             {
-                getstring(text, p);
+            	string text;
+				getstring(text, p);
+				text[MAXSTRLEN-1] = '\0'; 
                 if(!ci || !cq || (ci->state.state==CS_SPECTATOR && !ci->local && !ci->privilege) || !m_teammode || !cq->team[0]) break;
                 filtertext(text, text, true, true);
                 loopv(clients)
@@ -4565,7 +4771,9 @@ best.add(clients[i]); \
             case N_SWITCHNAME:
             {
                 QUEUE_MSG;
-                getstring(text, p);
+                string text;
+				getstring(text, p);
+				text[MAXSTRLEN-1] = '\0'; 
                 filtertext(ci->name, text, false, false, MAXNAMELEN);
                 if(!ci->name[0]) copystring(ci->name, "unnamed");
                 QUEUE_STR(ci->name);
@@ -4581,22 +4789,38 @@ best.add(clients[i]); \
             }
                 
       		case N_SWITCHTEAM:
-            {
-                getstring(text, p);
-                filtertext(text, text, false, false, MAXTEAMLEN);
-                if(m_teammode && text[0] && strcmp(ci->team, text) && (!smode || smode->canchangeteam(ci, ci->team, text)) && addteaminfo(text))
-                {
-                    if(ci->state.state==CS_ALIVE) suicide(ci);
-                    copystring(ci->team, text);
-                    aiman::changeteam(ci);
-                    sendf(-1, 1, "riisi", N_SETTEAM, sender, ci->team, ci->state.state==CS_SPECTATOR ? -1 : 0);
-                }
-                break;
-            }
+      		{
+      		    string text; 
+      		    getstring(text, p);
+      		    
+      		    text[MAXTEAMLEN] = '\0'; 
+      		
+      		    filtertext(text, text, false, false, MAXTEAMLEN);
+      		
+      		    if(m_teammode && text[0] && strcmp(ci->team, text) && 
+      		       (!smode || smode->canchangeteam(ci, ci->team, text)) && addteaminfo(text))
+      		    {
+      		        if(ci->state.state == CS_ALIVE) suicide(ci);
+      		
+      		        if(strcmp(ci->team, "good") == 0) team_good_count--;
+      		        else if(strcmp(ci->team, "evil") == 0) team_evil_count--;
+      		
+      		        copystring(ci->team, text);
+      		
+      		        if(strcmp(ci->team, "good") == 0) team_good_count++;
+      		        else if(strcmp(ci->team, "evil") == 0) team_evil_count++;
+      		
+      		        aiman::changeteam(ci);
+      		        sendf(-1, 1, "riisi", N_SETTEAM, sender, ci->team, ci->state.state==CS_SPECTATOR ? -1 : 0);
+      		    }
+      		    break;
+      		}
                 
             case N_MAPVOTE:
             {
-                getstring(text, p);
+            	string text;
+				getstring(text, p);
+				text[MAXSTRLEN-1] = '\0'; 
                 filtertext(text, text, false);
                 int reqmode = getint(p);
                 vote(text, reqmode, sender);
@@ -4653,7 +4877,10 @@ best.add(clients[i]); \
             	int size = server::msgsizelookup(type);
                 if(size<=0) { disconnect_client(sender, DISC_MSGERR); return; }
                 loopi(size-1) getint(p);
-                if(p.remaining() < 2) { disconnect_client(sender, DISC_MSGERR); return; }
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 int extra = lilswap(*(const ushort *)p.pad(2));
                 if(p.remaining() < extra) { disconnect_client(sender, DISC_MSGERR); return; }
                 p.pad(extra);
@@ -4675,6 +4902,10 @@ best.add(clients[i]); \
             case N_REDO:
             {
                 int unpacklen = getint(p), packlen = getint(p);
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 if(!ci || ci->state.state==CS_SPECTATOR || packlen <= 0 || packlen > (1<<16) || unpacklen <= 0)
                 {
                     if(packlen > 0) p.subbuf(packlen);
@@ -4868,9 +5099,18 @@ best.add(clients[i]); \
                 
             case N_SETTEAM:
             {
-                int who = getint(p);
-                getstring(text, p);
-                filtertext(text, text, false, false, MAXTEAMLEN);
+				if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
+
+    			int who = getint(p);
+    			string text;
+
+    			getstring(text, p);
+   				text[MAXTEAMLEN] = '\0'; // Ensure it's null-terminated at the max team length
+
+    			filtertext(text, text, false, false, MAXTEAMLEN);
                 if(!ci->privilege && !ci->local) break;
                 clientinfo *wi = getinfo(who);
                 if(!m_teammode || !text[0] || !wi || !wi->connected || !strcmp(wi->team, text)) break;
@@ -5021,6 +5261,10 @@ best.add(clients[i]); \
                 getstring(desc, p, sizeof(desc));
                 getstring(name, p, sizeof(name));
                 int victim = getint(p);
+                if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 getstring(text, p);
                 filtertext(text, text);
                 int authpriv = PRIV_AUTH;
@@ -5041,6 +5285,10 @@ best.add(clients[i]); \
             {
                 string desc, ans;
                 getstring(desc, p, sizeof(desc));
+            	if(p.overread()) {
+        			disconnect_client(ci->clientnum, DISC_MSGERR); 
+        			return;
+    			}
                 uint id = (uint)getint(p);
                 getstring(ans, p, sizeof(ans));
                 answerchallenge(ci, id, ans, desc);
@@ -5172,6 +5420,7 @@ best.add(clients[i]); \
 			saveallstats();
     		_storeflagruns();  
    			_flagruns.clear();
+   			clearbanners();
         }
     
 #include "aiman.h"
