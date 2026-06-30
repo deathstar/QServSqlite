@@ -13,11 +13,7 @@
 
 ## Overview
 
-QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that significantly expands the capabilities of the original dedicated server.
-
-Unlike traditional server modifications, QServ separates its command system from the core server implementation, making upgrades, maintenance, and feature development far easier. The result is a highly customizable, cross platform, feature-rich server platform that has evolved over more than 17 years of development.
-
-Whether you're running a public server, competitive clan server, private community, or custom game mode, QServ provides powerful administration tools, persistent player statistics, automated content delivery, browser-based management, and extensive gameplay enhancements.
+QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that significantly expands the capabilities of the original dedicated server. It offers a highly customizable, cross platform, extremely feature-rich backend that has evolved over more than 17 years of development. 
 
 ---
 
