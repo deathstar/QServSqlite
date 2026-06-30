@@ -252,6 +252,8 @@ namespace server {
         bool votedmapsucks = false;
         bool isInvAdmin = false;
         bool hasPassedFlag = false;
+        int last_update_time_sp; 
+    	int last_update_time_lb; 
         int db_frags = 0, db_deaths = 0, db_flags = 0;
      
         int64_t lasttext;
