@@ -1056,7 +1056,7 @@ namespace server {
         if(!ci) return false;
         if(!ci->local && !ci->state.canpickup(sents[i].type))
         {
-            sendf(sender, 1, "ri3", N_ITEMACC, i, -1);
+            sendf(ci->ownernum, 1, "ri3", N_ITEMACC, i, -1);
             return false;
         }
         sents[i].spawned = false;
@@ -1103,6 +1103,8 @@ namespace server {
     	team_good_count = 0;
     	team_evil_count = 0;
         loopv(clients) {
+			if (clients[i] == NULL) continue;
+			if (clients[i]->team == NULL) continue;
             if (clients[i]->state.state == CS_SPECTATOR) continue;
             if (strcmp(clients[i]->team, "good") == 0) team_good_count++;
             else if (strcmp(clients[i]->team, "evil") == 0) team_evil_count++;
@@ -1970,11 +1972,6 @@ namespace server {
          gs.lastspawn = gamemillis;
      }
     
-    bool is_insta(int mode)
-    {
-        return (gamemodes[mode - STARTGAMEMODE].flags & M_INSTA) != 0;
-    }
-    
     void sendwelcome(clientinfo *ci)
     {
         packetbuf p(MAXTRANS, ENET_PACKET_FLAG_RELIABLE);
@@ -2764,7 +2761,7 @@ namespace server {
         nextexceeded = 0;
         copystring(smapname, s);
         loaditems();
-		player_session_state.clear(); // clear for savestats
+		player_session_state.clear(); //savestats
         scores.shrink(0);
         teamkills.shrink(0);
         firstblood = false;
