@@ -135,20 +135,20 @@ Players can join a server and automatically receive custom maps directly from th
 
 ## Windows
 
-1. Configure your server:
+Download one of the up to date binaries from the [releases section](https://github.com/deathstar/QServSqlite/releases), unzip it, and configure your server:
 
 ```text
 config/server-init.cfg
 ```
 
-2. Forward the following UDP ports to the internal IP address of your server host:
+Forward the following UDP ports to the internal IP address of your server host:
 
 ```text
 28785
 28786
 ```
 
-3. Download one of the up to date binaries from the [releases section](https://github.com/deathstar/QServSqlite/releases), unzip it and run:
+Start QServ:
 
 ```text
 qserv.exe
@@ -156,7 +156,7 @@ qserv.exe
 
 ## Linux / macOS
 
-Configure:
+Download one of the up to date binaries from the [releases section](https://github.com/deathstar/QServSqlite/releases), unzip it, and configure your server:
 
 ```text
 config/server-init.cfg
@@ -167,16 +167,51 @@ Forward the following UDP ports to the internal IP address of your server host:
 28785
 28786
 ```
-Download one of the up to date binaries from the [releases section](https://github.com/deathstar/QServSqlite/releases), unzip it and run:
+Start QServ in a shell:
 
 ```bash
 ./qserv
 ```
 
-Or run the server in background (ideally you add qserv and stats-webserver.py to systemd instead, but you can also use crontab with qserv.sh):
+Or run the server in background:
 
 ```bash
-nohup ./qserv &
+./qserv.sh {start|stop|status|log|monitor} 
+```
+
+Ideally, add QServ to systemd by creating a /etc/systemd/system/qserv.service file containing:
+
+```
+[Unit]
+Description=Qserv Background Service
+After=network.target
+
+[Service]
+Type=simple
+# Replace with your actual user
+User=yourusername
+# Set this to the directory containing your qserv executable
+WorkingDirectory=/path/to/qserv/dir
+ExecStart=/path/to/qserv/dir/qserv
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+Then reload systemd and enable QServ to start on startup
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable qserv.service
+```
+You can then manage your server with systemd, which will automatically restart QServ if it stops.
+
+```
+sudo systemctl start qserv
+sudo systemctl stop qserv
+systemctl status qserv
+journalctl -u qserv -f
 ```
 
 ---
