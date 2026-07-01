@@ -67,6 +67,7 @@ namespace server {
     extern QSERV_CALLBACK flagrun_cmd(p);
     extern QSERV_CALLBACK allstats_cmd(p);
     extern QSERV_CALLBACK leaderboard_cmd(p);
+    extern QSERV_CALLBACK listpbans_cmd(p);
     //extern QSERV_CALLBACK owords_cmd(p);
 }
 
