@@ -81,6 +81,7 @@ namespace server {
 	extern void showflagrun(int cn); 
 	extern void cmd_showLeaderboard(int cn);
 	extern void cmd_sendplayerstats(int cn);
+	extern void sendpbanlist(int cn);
 
     void initCmds() {
         /**
@@ -138,8 +139,12 @@ namespace server {
         ncommand("flagrun", "\f7Shows the best flagrun record for this map, and your personal best. Usage #flagrun", PRIV_NONE, flagrun_cmd, 0);
         ncommand("leaderboard", "\f7Shows the top 5 players with the best lifetime stats. Command update cooldown: 30 seconds. Usage #leaderboard", PRIV_NONE, leaderboard_cmd, 0);
         ncommand("allstats", "\f7Shows your lifetime stats. Command update cooldown: 30 seconds. Usage #allstats", PRIV_NONE, allstats_cmd, 0);
+        ncommand("listpbans", "\f7Lists all permanently banned IPs on the server. Bans are stored in config/pbans.cfg", PRIV_ADMIN, listpbans_cmd, 0);
     }
-    
+    QSERV_CALLBACK listpbans_cmd(p) 
+	{
+    	server::sendpbanlist(CMD_SENDER);
+	}
     QSERV_CALLBACK flagrun_cmd(p) 
 	{
     	server::showflagrun(CMD_SENDER);
