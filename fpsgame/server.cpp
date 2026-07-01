@@ -3807,6 +3807,7 @@ best.add(clients[i]); \
 		ci->state.timeplayed = 0;
 		ci->last_update_time_sp = 0;
 		ci->last_update_time_lb = 0;
+		ci->stats_saved = false;
 		
         ci->sessionid = (rnd(0x1000000)*((totalmillis%10000)+1))&0xFFFFFF;
         ci->local = true;
