@@ -39,9 +39,10 @@ QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that signi
 
 ## 📊 Statistics & Database
 
-- SQLite-backed player database
-- Lifetime player statistics
-- Persistent player records
+- SQLite-backed player stats database
+- Lifetime player statistics on connect
+- Lifetime stats view command
+- Leaderboard view command
 - End-game statistics
 - Stored flagrun records
 - Full database integration
@@ -61,22 +62,6 @@ QServ is a standalone Cube 2: Sauerbraten server written in C and C++ that signi
 - Call-admin functionality
 - Anti-spam protection
 - Server overload protection
-
-## 🌎 Networking & Community
-
-- IRC bot integration
-- IRC administration commands
-- Multi-server chat linking
-- GeoIP geolocation
-- HTTP geolocation support
-- Country detection
-- State and region detection
-- City detection
-- SmartBot IRC integration
-  - Weather
-  - Translator
-  - Dictionary
-  - Calculator
 
 ## 🎮 Gameplay Modules
 
@@ -117,6 +102,21 @@ One of QServ's most unique features.
 - Server-side content distribution
 
 Players can join a server and automatically receive custom maps directly from the server without requiring external downloads.
+
+## 🌎 Networking & Community
+
+- IRC bot integration
+- IRC administration commands
+- Multi-server chat linking
+- HTTP/GeoIP DB geolocation support
+- Country detection
+- State and region detection
+- City detection
+- SmartBot IRC integration
+  - Weather
+  - Translator
+  - Dictionary
+  - Calculator
 
 ## 🔧 Development Features
 
