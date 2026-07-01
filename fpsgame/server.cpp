@@ -4016,6 +4016,25 @@ best.add(clients[i]); \
     ICOMMAND(clearpbans, "", (), clearpbans());
     ICOMMAND(ipban, "s", (const char *ipname), ipban(ipname));
     
+    void sendpbanlist(int cn)
+    {
+        if(ipbans.bans.empty())
+        {
+            sendf(cn, 1, "ris", N_SERVMSG, "Permanent ban list is empty");
+            return;
+        }
+    
+        sendf(cn, 1, "ris", N_SERVMSG, "Permanent ban list:");
+        loopv(ipbans.bans)
+        {
+            const char *ip = ipbans.bans[i].ipstr;
+            string buf;
+            snprintf(buf, sizeof(buf), "\f2id:\f7%2d\f2, ip: \f7%s", i, ip);
+            
+            sendf(cn, 1, "ris", N_SERVMSG, buf);
+        }
+    }
+    
     void sendkickbanlist(int cn)
     {
         string buf;
