@@ -173,7 +173,7 @@ Download one of the up to date binaries from the [releases section](https://gith
 ./qserv
 ```
 
-Or run the server in background:
+Or run the server in background (ideally you add qserv and stats-webserver.py to systemd instead, but you can also use crontab with qserv.sh):
 
 ```bash
 nohup ./qserv &
