@@ -1056,7 +1056,7 @@ namespace server {
         if(!ci) return false;
         if(!ci->local && !ci->state.canpickup(sents[i].type))
         {
-            sendf(ci->ownernum, 1, "ri3", N_ITEMACC, i, -1);
+            sendf(sender, 1, "ri3", N_ITEMACC, i, -1);
             return false;
         }
         sents[i].spawned = false;
@@ -1103,8 +1103,6 @@ namespace server {
     	team_good_count = 0;
     	team_evil_count = 0;
         loopv(clients) {
-			if (clients[i] == NULL) continue;
-			if (clients[i]->team == NULL) continue;
             if (clients[i]->state.state == CS_SPECTATOR) continue;
             if (strcmp(clients[i]->team, "good") == 0) team_good_count++;
             else if (strcmp(clients[i]->team, "evil") == 0) team_evil_count++;
@@ -1971,7 +1969,12 @@ namespace server {
              gs.gunselect, GUN_PISTOL-GUN_SG+1, &gs.ammo[GUN_SG]);
          gs.lastspawn = gamemillis;
      }
-		
+    
+    bool is_insta(int mode)
+    {
+        return (gamemodes[mode - STARTGAMEMODE].flags & M_INSTA) != 0;
+    }
+    
     void sendwelcome(clientinfo *ci)
     {
         packetbuf p(MAXTRANS, ENET_PACKET_FLAG_RELIABLE);
@@ -2741,7 +2744,6 @@ namespace server {
     VAR(defaultgamespeed, 10, 100, 1000);
 	extern int mapsucksvotes;
 	void save_pbans();
-	void clear_pban_strings();
     void changemap(const char *s, int mode)
     {
         //can cause excess flood on loop i mapchange for IRC
@@ -2763,8 +2765,6 @@ namespace server {
         copystring(smapname, s);
         loaditems();
 		player_session_state.clear(); // clear for savestats
-		save_pbans();
-		clear_pban_strings(); //periodically clear strings
         scores.shrink(0);
         teamkills.shrink(0);
         firstblood = false;
@@ -3946,26 +3946,33 @@ best.add(clients[i]); \
     
     int reserveclients() { return 3; }
     
-    vector<char *> pban_strings; //file storage
-    struct banlist
-    {
-        vector<ipmask> bans;
-        void clear() { bans.shrink(0); }
-        
-        bool check(uint ip)
-        {
-            loopv(bans) if(bans[i].check(ip)) return true;
+    struct banentry {
+        ipmask mask;
+        char *ipstr;
+    };
+    
+    struct banlist {
+        vector<banentry> bans;
+    
+        void clear() {
+            loopv(bans) delete[] bans[i].ipstr;
+            bans.shrink(0);
+        }
+    
+        bool check(uint ip) {
+            loopv(bans) if(bans[i].mask.check(ip)) return true;
             return false;
         }
-        
-        void add(const char *ipname)
-        {
-            ipmask ban;
-            ban.parse(ipname);
-            bans.add(ban);
+    
+        void add(const char *ipname) {
+            banentry b;
+            b.mask.parse(ipname);
+            b.ipstr = newstring(ipname);
+            bans.add(b);
         }
     } ipbans, gbans;
     
+    // The central gateway for all bans (vanilla)
     bool checkbans(uint ip)
     {
         loopv(bannedips) if(bannedips[i].ip==ip) return true;
@@ -3997,7 +4004,7 @@ best.add(clients[i]); \
         if(!f) return;
         loopv(ipbans.bans)
         {
-            fprintf(f, "%s\n", pban_strings[i]);
+            fprintf(f, "%s\n", ipbans.bans[i].ipstr);
         }
         fclose(f);
     }
@@ -4010,35 +4017,26 @@ best.add(clients[i]); \
         while(fgets(line, sizeof(line), f))
         {
             line[strcspn(line, "\r\n")] = 0; 
+            if(line[0] == '\0') continue; // Skip empty lines
             ipbans.add(line);
-            pban_strings.add(newstring(line)); 
         }
         fclose(f);
     }
     
     void ipban(const char *ipname) 
     {
+        // Safety check to prevent global/malformed bans
+        if(!ipname || !*ipname || strcmp(ipname, "0.0.0.0") == 0) return;
+        
         ipbans.add(ipname); 
-        pban_strings.add(newstring(ipname)); 
         save_pbans();
         verifybans(); 
     }
     
-    void clear_pban_strings()
-    {
-        loopv(pban_strings) 
-        {
-            delete[] pban_strings[i]; 
-        }
-        pban_strings.shrink(0);
-    }
-    
     void clearpbans() {
-    	ipbans.clear();
-    	clear_pban_strings();
-    	save_pbans(); // Overwrite the file with an empty list
-	}
-    
+        ipbans.clear();
+        save_pbans();
+    }
     
     ICOMMAND(clearpbans, "", (), clearpbans());
     ICOMMAND(ipban, "s", (const char *ipname), ipban(ipname));
@@ -4798,8 +4796,10 @@ best.add(clients[i]); \
       		       (!smode || smode->canchangeteam(ci, ci->team, text)) && addteaminfo(text))
       		    {
       		        if(ci->state.state == CS_ALIVE) suicide(ci);
+      		
       		        copystring(ci->team, text);
-					update_team_counters();
+      				update_team_counters();
+      				
       		        aiman::changeteam(ci);
       		        sendf(-1, 1, "riisi", N_SETTEAM, sender, ci->team, ci->state.state==CS_SPECTATOR ? -1 : 0);
       		    }
