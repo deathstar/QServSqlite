@@ -27,11 +27,6 @@ int count = 0;
 int msgcount[128];
 extern volatile std::sig_atomic_t shutdown_requested;
 
-struct SessionStats {
-    bool saved_already;
-};
-std::map<std::string, SessionStats> player_session_state;
-
 VAR(regenbluearmour, 0, 1, 1);  
  
 extern ENetAddress masteraddress;               
@@ -2195,27 +2190,15 @@ namespace server {
 	{
 	    if(!ci || !ci->connected || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS || !ci->name[0]) return;
 	    if(ci->state.aitype != AI_NONE || ci->state.state == CS_SPECTATOR) return;
+	    if(ci->stats_saved) return;
 	    
 	    std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
 	    
-	    // Gatekeeper
-	    auto &state = player_session_state[ci->ip];
-	    if(state.saved_already) return;
 	
 	    int s_frags = max(0, ci->state.frags);
 	    int s_deaths = max(0, ci->state.deaths);
 	    int s_flags = max(0, ci->state.flags);
 	    if(s_frags == 0 && s_deaths == 0 && s_flags == 0) return;
-	
-	    //prevent concurrent writes from same client on /reconnect
-	    static bool is_saving = false;  
-	    if(is_saving) return; 
-	    
-		struct SaveGuard { 
-        	bool &flag; 
-        	SaveGuard(bool &f) : flag(f) { flag = true; }
-        	~SaveGuard() { flag = false; }
-    	} save_guard(is_saving);
 	
 	    sqlite3 *db = qs.getDB();
 	    if(!db) return;
@@ -2247,7 +2230,7 @@ namespace server {
 	        int rc = sqlite3_step(stmt);
 	        if(rc == SQLITE_DONE) 
 	        {
-	            state.saved_already = true;
+	            ci->stats_saved = false;
 	        }
 	        else {
 	            fprintf(stderr, "DB ERROR: Failed to save stats for %s (Code: %d)\n", ci->name, rc);
@@ -2270,7 +2253,7 @@ namespace server {
    	void sendplayerstats(clientinfo *ci)
     {
 		if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
-        
+        fprintf(stderr, "DEBUG: Attempting to fetch stats for IP: %s (Name: %s)\n", ci->ip, ci->name);
         std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
 
         char key[64];
@@ -2304,7 +2287,7 @@ namespace server {
                 "Lifetime stats for \f0%s\f7: Frags: \f1%d\f7, Deaths: \f3%d\f7, Flags: \f5%d\f7, K/D: \f2%.2f",
                 ci->name, frags, deaths, flags, kd
             );
-            sendf(ci->clientnum, 1, "ris", N_SERVMSG, msg);
+            sendservmsg(msg);
         }
         else
         {
@@ -2321,7 +2304,7 @@ namespace server {
     	{
         	clientinfo *ci = clients[i];
         	if(!ci || !ci->connected || ci->state.aitype != AI_NONE || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS) continue;
-        	if(!player_session_state[ci->ip].saved_already) {
+        	if(!ci->stats_saved) {
         		savestats(ci);
         	}
     	}
@@ -2740,13 +2723,11 @@ namespace server {
        
     VAR(defaultgamespeed, 10, 100, 1000);
 	extern int mapsucksvotes;
-	void save_pbans();
     void changemap(const char *s, int mode)
     {
         //can cause excess flood on loop i mapchange for IRC
         out(ECHO_CONSOLE, "Map changed to: %s | Modenum: %d", s, mode);
         out(ECHO_CONSOLE, "Gamespeed is: %d", defaultgamespeed);
-		saveallstats();
         stopdemo();
         pausegame(false);
         changegamespeed(defaultgamespeed);
@@ -2761,7 +2742,6 @@ namespace server {
         nextexceeded = 0;
         copystring(smapname, s);
         loaditems();
-		player_session_state.clear(); //savestats
         scores.shrink(0);
         teamkills.shrink(0);
         firstblood = false;
@@ -2794,6 +2774,7 @@ namespace server {
         {
             clientinfo *ci = clients[i];
             ci->mapchange();
+            ci->stats_saved = false;
             ci->state.lasttimeplayed = lastmillis;
             if(m_mp(gamemode) && ci->state.state!=CS_SPECTATOR) sendspawn(ci);
             
@@ -3282,8 +3263,8 @@ best.add(clients[i]); \
     }
     
     void startintermission() {
-    	out(ECHO_CONSOLE, "\f2Game ended, intermission started...");
-    	saveallstats();
+        saveallstats();
+    	out(ECHO_CONSOLE, "Game ended, intermission started...");
         gamelimit = min(gamelimit, gamemillis);
         checkintermission(true);
     }
@@ -3831,7 +3812,6 @@ best.add(clients[i]); \
         ci->local = true;
         connects.add(ci);
         sendservinfo(ci);
-        player_session_state[ci->ip] = {false}; // clear for savestats
     }
     
     void localdisconnect(int n)
@@ -3866,6 +3846,7 @@ best.add(clients[i]); \
 		ci->state.timeplayed = 0;
 		ci->last_update_time_sp = 0;
 		ci->last_update_time_lb = 0;
+		ci->stats_saved = false;
 		
 		update_team_counters();
 		
@@ -3901,9 +3882,6 @@ best.add(clients[i]); \
    		ci->votedmapsucks = false;
    
         sendservinfo(ci);
-        
-        player_session_state[ci->ip] = {false}; // reset savestats gate
-
        
         return DISC_NONE;
     }
@@ -3914,15 +3892,14 @@ best.add(clients[i]); \
            loopv(clients) if(clients[i]->authkickvictim == ci->clientnum) clients[i]->cleanauth();
            if(ci->connected)
            {
-           	 if(player_session_state.find(ci->ip) != player_session_state.end() && !player_session_state[ci->ip].saved_already) 
-			  {
+           	   if(!ci->stats_saved) 
+			   {
     			savestats(ci);
-			  }
+			   }
 			   ci->state.frags = 0;
         	   ci->state.deaths = 0;
                ci->state.flags = 0;
                ci->state.timeplayed = 0;
-               player_session_state.erase(ci->ip);
                if(ci->privilege && !ci->isInvAdmin) setmaster(ci, false);
                if(smode) smode->leavegame(ci, true);
                ci->state.timeplayed += lastmillis - ci->state.lasttimeplayed;
