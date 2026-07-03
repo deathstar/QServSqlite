@@ -1,3 +1,7 @@
+# A simple python webserver that displays stats and ranks players from your servers saved statistics database
+# To utilize the script, install python, run: nohup python stats-webserver.py & and then forward port 8080 using TCP
+# Anyone can see your webpage with saved statistics from http://yourIP:8080. You can use tinyurl.com to hide the IP
+
 import sqlite3, os, threading, time, re, html, urllib.parse
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
