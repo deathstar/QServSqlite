@@ -2336,7 +2336,9 @@ namespace server {
 	    sqlite3_stmt *stmt = nullptr;
 	    if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
 	    {
-	        sqlite3_bind_text(stmt, 1, ci->name, -1, SQLITE_TRANSIENT);
+			char key[64];
+			make_name_key_utf8(ci->name, key, sizeof(key));
+	        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
 	        
 	        if(sqlite3_step(stmt) == SQLITE_ROW)
 	        {
