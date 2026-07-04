@@ -2191,10 +2191,12 @@ namespace server {
 	    if(!ci || !ci->connected || ci->clientnum < 0 || ci->clientnum >= MAXCLIENTS || !ci->name[0]) return;
 	    if(ci->state.aitype != AI_NONE || ci->state.state == CS_SPECTATOR) return;
 	    if(ci->stats_saved) return;
+
+		char key[64];
+	    make_name_key_utf8(ci->name, key, sizeof(key));
 	    
 	    std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
 	    
-	
 	    int s_frags = max(0, ci->state.frags);
 	    int s_deaths = max(0, ci->state.deaths);
 	    int s_flags = max(0, ci->state.flags);
@@ -2205,9 +2207,6 @@ namespace server {
 	
 	    // Set a busy timeout so SQLite waits 5 seconds for a lock to release
 	    sqlite3_busy_timeout(db, 200); 
-	
-	    char key[64];
-	    make_name_key_utf8(ci->name, key, sizeof(key));
 	        
 	    const char *sql =
 	        "INSERT INTO PLAYERINFO (NAME, FRAGS, DEATHS, FLAGS, KD) "
@@ -2253,11 +2252,11 @@ namespace server {
    	void sendplayerstats(clientinfo *ci)
     {
 		if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
-        fprintf(stderr, "DEBUG: Attempting to fetch stats for IP: %s (Name: %s)\n", ci->ip, ci->name);
-        std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
-
-        char key[64];
+		fprintf(stderr, "DEBUG: Attempting to fetch stats for IP: %s (Name: %s)\n", ci->ip, ci->name);
+		char key[64];
         make_name_key_utf8(ci->name, key, sizeof(key));
+
+        std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
     
         sqlite3 *db = qs.getDB();
         if(!db) {
@@ -2315,6 +2314,9 @@ namespace server {
 	{
 	    clientinfo *ci = (clientinfo *)getclientinfo(cn);
 	    if (!ci || !ci->connected || ci->state.aitype != AI_NONE || !ci->name[0]) return;
+
+		char key[64];
+    	make_name_key_utf8(ci->name, key, sizeof(key));
 	    
 	    {   //mutex scope
 	    	std::lock_guard<std::recursive_mutex> lock(QServ::qserv_mutex);
@@ -2336,8 +2338,6 @@ namespace server {
 	    sqlite3_stmt *stmt = nullptr;
 	    if(sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK)
 	    {
-			char key[64];
-			make_name_key_utf8(ci->name, key, sizeof(key));
 	        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
 	        
 	        if(sqlite3_step(stmt) == SQLITE_ROW)
