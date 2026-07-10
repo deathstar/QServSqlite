@@ -3872,7 +3872,6 @@ best.add(clients[i]); \
         clientinfo *ci = getinfo(n);
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
-		out(ECHO_ALL, "Local connection");
         ci->state.frags = 0;
 		ci->state.deaths = 0;
 		ci->state.flags = 0;
