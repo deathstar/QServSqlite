@@ -131,7 +131,8 @@ namespace server {
 	VAR(banflagrunhackers, 0, 0, 1); 				 //autoban flag runners that score in <500ms
 	VAR(friendlyfire, 0, 0, 1); 				     //enable/disable damage to teammates 
 	VAR(autobotbalance, 0, 0, 1); 				     //automatically balance teams with bots
-	VAR(botskill, 0, 50, 100);                       //sets the skill level for autobotbalance
+	VAR(autoaddbot, 0, 0, 1); 				         //automatically adds/removes 1 bot for each connected client
+	VAR(botskill, 0, 50, 101);                       //sets the skill level for autoaddbot
 
     bool firstblood;
     bool enableautosendmap = true;
@@ -3627,70 +3628,158 @@ best.add(clients[i]); \
         ci->timesync = false;
     }
     
-	void maintainBots()
-	{
-		if(!autobotbalance) return;
-	
-		static int lastcheck = 0;
-		if(lastmillis - lastcheck < 5000) return;
-		lastcheck = lastmillis;
-
-		int humans = 0;
-		int numbots = 0;
-
-		clientinfo *owner = NULL;
-
-		for(int i = 0; i < clients.length(); i++)
-		{
-			clientinfo *ci = clients[i];
-			if(!ci || !ci->connected) continue; 
+    void addBotHelper(clientinfo *ci, int skill)
+    {
+        if (!ci) return;
+        int oldpriv = ci->privilege;
+        ci->privilege = PRIV_MASTER;
+        aiman::reqadd(ci, skill); 
+        ci->privilege = oldpriv;
+        aiman::checkai();        
+    }
+    
+    void removeBotHelper(clientinfo *ci)
+    {
+        if (!ci) return;
+    
+        // Loop through bot array not client array
+        int cn = ci->clientnum - MAXCLIENTS;
         
-			if (ci->state.aitype == AI_NONE) 
-			{
-				humans++;
-				if(!owner) owner = ci; 
-			}
-			else 
-			{
-            numbots++;
-			}
-		}
-
-		if (numbots < humans)
-		{
-			if(owner) 
-			{
-				int oldpriv = owner->privilege;
-				owner->privilege = PRIV_MASTER;
-        
-				aiman::reqadd(owner, botskill);
-        
-				owner->privilege = oldpriv;
-			}
-		}
-		else if (numbots > humans)
-		{
-			for(int i = 0; i < clients.length(); i++)
-			{
-				clientinfo *ci = clients[i];
-				if(ci && ci->connected && ci->state.aitype != AI_NONE)
-				{
-					int cn = ci->clientnum - MAXCLIENTS;
-					if(bots.inrange(cn))
-					{
-						if(smode) smode->leavegame(ci, true);
-						sendf(-1, 1, "ri2", N_CDIS, ci->clientnum);
-						clientinfo *owner = (clientinfo *)getclientinfo(ci->ownernum);
-						if(owner) owner->bots.removeobj(ci);
-						clients.removeobj(ci);
-						DELETEP(bots[cn]);
-					}
+        if (bots.inrange(cn))
+        {
+            if (smode) smode->leavegame(ci, true);
+            sendf(-1, 1, "ri2", N_CDIS, ci->clientnum);
+            
+            clientinfo *owner = (clientinfo *)getclientinfo(ci->ownernum);
+            if (owner) owner->bots.removeobj(ci);
+            
+            clients.removeobj(ci);
+            DELETEP(bots[cn]);
             
             aiman::checkai();
-            break;
-				}
-			}
-		}
+            //printf("Successfully removed bot cn: %d (local cn: %d)\n", ci->clientnum, cn);
+        }
+        else
+        {
+            printf("CRITICAL: Failed to remove bot cn: %d (calculated index %d out of range)\n", ci->clientnum, cn);
+        }
+    }
+    
+  	void autoBotBalance()
+  	{
+  	    if (!autobotbalance || !m_teammode) return;
+  	
+  	    static int lastcheck = 0;
+  	    if (lastmillis - lastcheck < 5000) return;
+  	    lastcheck = lastmillis;
+  	
+  	    int humans = 0, numbots = 0;
+  	    clientinfo *anyValidClient = NULL;
+  	
+  	    loopv(clients)
+  	    {
+  	        clientinfo *ci = clients[i];
+  	        if (!ci || !ci->connected || ci->state.state == CS_SPECTATOR) continue;
+  	        
+  	        anyValidClient = ci;
+  	        
+  	        if (ci->state.aitype != AI_NONE) numbots++; 
+  	        else humans++; 
+  	    }
+  	
+  	    if (!anyValidClient) return; 
+  	    
+  	    // Prevent autoaddbot and autobotbalance from fighting
+  	    if (autoaddbot && humans < 3) return;
+  	
+  	    int targetBots = 0;
+  	    
+  	    if (humans >= 3)
+  	    {
+  	        // humans are odd, add a bot to balance
+  	        if (humans % 2 != 0) 
+  	        {
+  	            targetBots = 1;
+  	        }
+  	        // humans are even, we don't need bots
+  	        else 
+  	        {
+  	            targetBots = 0;
+  	        }
+  	    }
+  	
+  	    if (numbots < targetBots)
+  	    {
+  	        //printf("Autobotbalance: Odd human count (%d). Adding a bot.\n", humans);
+  	        addBotHelper(anyValidClient, botskill);
+  	    }
+  	    else if (numbots > targetBots)
+  	    {
+  	        loopv(clients)
+  	        {
+  	            clientinfo *ci = clients[i];
+  	            if (ci && ci->state.aitype != AI_NONE && ci->ownernum >= 0)
+  	            {
+  	                //printf("Autobotbalance: Even human count (%d). Pruning excess bot cn: %d\n", humans, ci->clientnum);
+  	                removeBotHelper(ci);
+  	                break; 
+  	            }
+  	        }
+  	    }
+  	}
+    
+	void autoAddBot()
+	{
+	    if (!autoaddbot) return;
+	
+	    static int lastcheck = 0;
+	    if (lastmillis - lastcheck < 5000) return;
+	    lastcheck = lastmillis;
+	
+	    int humans = 0;
+	    int numbots = 0;
+	    clientinfo *owner = NULL;
+	
+	    loopv(clients)
+	    {
+	        clientinfo *ci = clients[i];
+	        if (!ci || !ci->connected) continue;
+	
+	        if (ci->state.aitype == AI_NONE)
+	        {
+	            humans++;
+	            if (!owner) owner = ci;
+	        }
+	        else
+	        {
+	            numbots++;
+	        }
+	    }
+	
+	    // Hand off control to autobotbalance ONLY if we have enough players for a team game
+	    if (autobotbalance && m_teammode && humans >= 3) return; 
+	
+	    if (numbots < humans)
+	    {
+	        if (owner)
+	        {
+	            //printf("Autoaddbot: Adding a bot for solo/duo play.\n");
+	            addBotHelper(owner, botskill);
+	        }
+	    }
+	    else if (numbots > humans)
+	    {
+	        loopv(clients)
+	        {
+	            clientinfo *ci = clients[i];
+	            if (ci && ci->state.aitype != AI_NONE && ci->ownernum >= 0)
+	            {
+	                //printf("Autoaddbot: Pruning excess bot.\n");
+	                removeBotHelper(ci);
+	                break; 
+	            }
+	        }
+	    }
 	}
 
     void serverupdate()
@@ -3705,7 +3794,8 @@ best.add(clients[i]); \
                 processevents();
                 if(curtime)
                 {
-					maintainBots();
+					autoAddBot();
+					autoBotBalance(); 
                     updateBanner();
                     if(instacoop && gamemillis >= instacoop_gamelimit && !interm) startintermission(); 
                     loopv(sents) if(sents[i].spawntime) //spawn entities when timer reached
