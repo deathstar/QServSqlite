@@ -130,6 +130,8 @@ namespace server {
 	VAR(serverflagruns, 0, 0, 1); 					 //enable/disable flagrun message/storage
 	VAR(banflagrunhackers, 0, 0, 1); 				 //autoban flag runners that score in <500ms
 	VAR(friendlyfire, 0, 0, 1); 				     //enable/disable damage to teammates 
+	VAR(autobotbalance, 0, 0, 1); 				     //automatically balance teams with bots
+	VAR(botskill, 0, 50, 100);                       //sets the skill level for autobotbalance
 
     bool firstblood;
     bool enableautosendmap = true;
@@ -3625,6 +3627,72 @@ best.add(clients[i]); \
         ci->timesync = false;
     }
     
+	void maintainBots()
+	{
+		if(!autobotbalance) return;
+	
+		static int lastcheck = 0;
+		if(lastmillis - lastcheck < 5000) return;
+		lastcheck = lastmillis;
+
+		int humans = 0;
+		int numbots = 0;
+
+		clientinfo *owner = NULL;
+
+		for(int i = 0; i < clients.length(); i++)
+		{
+			clientinfo *ci = clients[i];
+			if(!ci || !ci->connected) continue; 
+        
+			if (ci->state.aitype == AI_NONE) 
+			{
+				humans++;
+				if(!owner) owner = ci; 
+			}
+			else 
+			{
+            numbots++;
+			}
+		}
+
+		if (numbots < humans)
+		{
+			if(owner) 
+			{
+				int oldpriv = owner->privilege;
+				owner->privilege = PRIV_MASTER;
+        
+				aiman::reqadd(owner, botskill);
+        
+				owner->privilege = oldpriv;
+			}
+		}
+		else if (numbots > humans)
+		{
+			for(int i = 0; i < clients.length(); i++)
+			{
+				clientinfo *ci = clients[i];
+				if(ci && ci->connected && ci->state.aitype != AI_NONE)
+				{
+					int cn = ci->clientnum - MAXCLIENTS;
+					if(bots.inrange(cn))
+					{
+						if(smode) smode->leavegame(ci, true);
+						sendf(-1, 1, "ri2", N_CDIS, ci->clientnum);
+						clientinfo *owner = (clientinfo *)getclientinfo(ci->ownernum);
+						if(owner) owner->bots.removeobj(ci);
+						clients.removeobj(ci);
+						DELETEP(bots[cn]);
+					}
+            
+            aiman::checkai();
+            break;
+				}
+			}
+		}
+	}
+
     void serverupdate()
     {
         if(shouldstep && !gamepaused)
@@ -3637,6 +3705,7 @@ best.add(clients[i]); \
                 processevents();
                 if(curtime)
                 {
+					maintainBots();
                     updateBanner();
                     if(instacoop && gamemillis >= instacoop_gamelimit && !interm) startintermission(); 
                     loopv(sents) if(sents[i].spawntime) //spawn entities when timer reached
@@ -3796,13 +3865,14 @@ best.add(clients[i]); \
         changegamespeed(defaultgamespeed); //return back to normal gamespeed
         out(ECHO_NOCOLOR, "Server has emptied");
     }
+	
     
     void localconnect(int n)
     {
         clientinfo *ci = getinfo(n);
         ci->clientnum = ci->ownernum = n;
         ci->connectmillis = totalmillis;
-        
+		out(ECHO_ALL, "Local connection");
         ci->state.frags = 0;
 		ci->state.deaths = 0;
 		ci->state.flags = 0;
@@ -3842,7 +3912,6 @@ best.add(clients[i]); \
 		verifybans();
 		bool is_new_connection = (ci->connectmillis == 0);
     	copystring(ci->ip, ipstr);
-    	
     	ci->state.frags = 0;
 		ci->state.deaths = 0;
 		ci->state.flags = 0;
@@ -3885,7 +3954,6 @@ best.add(clients[i]); \
    		ci->votedmapsucks = false;
    
         sendservinfo(ci);
-       
         return DISC_NONE;
     }
     
@@ -5408,6 +5476,5 @@ best.add(clients[i]); \
    			_flagruns.clear();
    			clearbanners();
         }
-    
-#include "aiman.h"
+    #include "aiman.h"
 }
