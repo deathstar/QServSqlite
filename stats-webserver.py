@@ -54,6 +54,7 @@ def build_html_layout(rows, active_mode):
     
     return f"""<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="32x32" href="https://stats.fm/icons/favicon-32x32.png"/>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;600&display=swap');
     body {{ background: #050505; color: #fff; font-family: 'Inter', sans-serif; display: flex; justify-content: center; padding: 40px 20px; }}
