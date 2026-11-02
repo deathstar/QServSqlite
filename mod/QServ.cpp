@@ -548,7 +548,7 @@ namespace server {
 	                geoip_record_copied = true;
 	                is_unknown_ip = false; 
 	            } else if (enable_HTTP_geo && http_completed) {
-	                defformatstring(msg)("\f0%s \f7connected from \f4%s", colorname(ci), s.c_str());
+	                defformatstring(msg)("\f0%s \f7connected from \f8%s", colorname(ci), s.c_str());
 	                out(ECHO_SERV, "%s", msg);
 	                defformatstring(cmsg)("%s connected from %s", colorname(ci), s.c_str());
 	                out(ECHO_CONSOLE, "%s", cmsg);
