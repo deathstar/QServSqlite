@@ -4681,6 +4681,13 @@ best.add(clients[i]); \
                     ci->events.deletecontents();
                     ci->state.rockets.reset();
                     ci->state.grenades.reset();
+					if(!m_edit)
+                    {
+						forcespectator(ci);
+                        ci->isSpecLocked = true
+                		out(ECHO_SERV, "\f3[Anti-Cheat] \f7Blocked edit mode exploit attempt by \f0%s", colorname(ci));
+                        break; 
+                    }
                     
                 }
                 else ci->state.state = ci->state.editstate;
