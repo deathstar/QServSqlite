@@ -28,13 +28,15 @@ def get_leaderboard_data(sort_mode):
     }
     order_by = sort_map.get(sort_mode, sort_map['weighted'])
     
-    conn = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True)
+    conn = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=1.0)
     conn.text_factory = bytes
     cursor = conn.cursor()
-    cursor.execute(f"SELECT NAME, FRAGS, DEATHS, FLAGS, ROUND(CAST(KD AS REAL), 2) FROM PLAYERINFO ORDER BY {order_by} LIMIT 100")
-    raw_rows = cursor.fetchall()
-    conn.close()
-    return [(html.escape(clean_name(r[0])), r[1], r[2], r[3], r[4]) for r in raw_rows]
+    try:
+        cursor.execute(f"SELECT NAME, FRAGS, DEATHS, FLAGS, ROUND(CAST(KD AS REAL), 2) FROM PLAYERINFO ORDER BY {order_by} LIMIT 100")
+        raw_rows = cursor.fetchall()
+        return [(html.escape(clean_name(r[0])), r[1], r[2], r[3], r[4]) for r in raw_rows]
+    finally:
+        conn.close()
 
 def update_cache():
     global html_cache
