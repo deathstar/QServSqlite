@@ -90,6 +90,9 @@ struct ctfclientmode : clientmode
     
     void dopassflagsequence(clientinfo *actor, clientinfo *target)
     {
+        if(!actor || !target) return;
+        float raw_dist = actor->state.o.dist(target->state.o);
+        int distance_feet = int((raw_dist / 16.0f) + 0.5f); //scale down a bit
         loopv(flags)
             {
                 flag &f = flags[i];
@@ -99,7 +102,7 @@ struct ctfclientmode : clientmode
                     loopv(flags) if(flags[i].dropper == actor->clientnum) { flags[i].dropper = -1; flags[i].dropcount = 0; }
                     takeflag(target, i, f.version);
                     update();
-                    out(ECHO_SERV, "\f0%s \f7passed the flag to \f6%s", colorname(actor), colorname(target));
+                    out(ECHO_SERV, "\f0%s \f7passed the flag to \f6%s \f7(Distance: %d feet)", colorname(actor), colorname(target), distance_feet);
                     target->hasPassedFlag = true;
                 }
             }
