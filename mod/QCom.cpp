@@ -82,6 +82,7 @@ namespace server {
 	extern void cmd_showLeaderboard(int cn);
 	extern void cmd_sendplayerstats(int cn);
 	extern void sendpbanlist(int cn);
+	extern int autobotbalance;
 
     void initCmds() {
         /**
@@ -140,7 +141,14 @@ namespace server {
         ncommand("leaderboard", "\f7Shows the top 5 players with the best lifetime stats. Command update cooldown: 30 seconds. Usage #leaderboard", PRIV_NONE, leaderboard_cmd, 0);
         ncommand("allstats", "\f7Shows your lifetime stats. Command update cooldown: 30 seconds. Usage #allstats", PRIV_NONE, allstats_cmd, 0);
         ncommand("listpbans", "\f7Lists all permanently banned IPs on the server. Bans are stored in config/pbans.cfg", PRIV_ADMIN, listpbans_cmd, 0);
+		ncommand("autobotbalance", "\f7Automatically balances human teams with bots.", PRIV_MASTER, autobotbalance_cmd, 1);
     }
+	QSERV_CALLBACK autobotbalance_cmd(p) 
+	{
+		server::autobotbalance = server::autobotbalance ? 0 : 1;
+		out(ECHO_SERV, "autobotbalance is now %s", server::autobotbalance ? "\f0enabled" : "\f3disabled");
+		out(ECHO_CONSOLE, "autobotbalance is now %s", server::autobotbalance ? "enabled" : "disabled");
+	}
     QSERV_CALLBACK listpbans_cmd(p) 
 	{
     	server::sendpbanlist(CMD_SENDER);
