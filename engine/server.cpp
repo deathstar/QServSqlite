@@ -751,6 +751,15 @@ static void dispatch_enet_event(ENetEvent &event)
         case ENET_EVENT_TYPE_RECEIVE:
         {
             client *c = (client *)event.peer->data;
+            if(!c)
+            {
+                // qserv Fallback: search active TCP/IP clients by peer pointer
+                loopv(clients) if(clients[i]->type == ST_TCPIP && clients[i]->peer == event.peer)
+                {
+                    c = clients[i];
+                    break;
+                }
+            }
             if(c) process(event.packet, c->num, event.channelID);
             if(event.packet->referenceCount==0) enet_packet_destroy(event.packet);
             break;
@@ -758,7 +767,17 @@ static void dispatch_enet_event(ENetEvent &event)
         case ENET_EVENT_TYPE_DISCONNECT:
         {
             client *c = (client *)event.peer->data;
+            if(!c)
+            {
+                // qserv Fallback search prevents ghost clients if peer->data was lost or desynced
+                loopv(clients) if(clients[i]->type == ST_TCPIP && clients[i]->peer == event.peer)
+                {
+                    c = clients[i];
+                    break;
+                }
+            }
             if(!c) break;
+            event.peer->data = NULL; // qserv Clear peer data so ENet recycling never points to freed memory
             logoutf("disconnected client (%s)", c->hostname);
             server::clientdisconnect(c->num);
             delclient(c);
