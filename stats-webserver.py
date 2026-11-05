@@ -4,6 +4,7 @@
 
 import sqlite3, os, threading, time, re, html, urllib.parse
 from http.server import SimpleHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 PORT = 8080
 DB_FILE = 'playerinfo.db'
@@ -12,6 +13,10 @@ CACHE_REFRESH_INTERVAL = 60
 # Cache for all 5 modes: weighted (default), kd, frags, deaths, flags
 html_cache = {m: b"<h3>Initializing...</h3>" for m in ['weighted', 'kd', 'frags', 'deaths', 'flags']}
 cache_lock = threading.Lock()
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    """Handle requests in separate threads to prevent webserver hangs."""
+    daemon_threads = True
 
 def clean_name(name_bytes):
     name_no_colors = re.sub(b'[\x0c\x0f].', b'', name_bytes)
@@ -27,8 +32,8 @@ def get_leaderboard_data(sort_mode):
         'weighted': '(CAST(KD AS REAL) * 100) + (CAST(FLAGS AS REAL) * 25) + (CAST(FRAGS AS REAL) * 0.1) DESC'
     }
     order_by = sort_map.get(sort_mode, sort_map['weighted'])
-    
-    conn = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=1.0)
+
+    conn = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5.0)
     conn.text_factory = bytes
     cursor = conn.cursor()
     try:
@@ -91,5 +96,16 @@ class FastDBHandler(SimpleHTTPRequestHandler):
             self.wfile.write(html_cache.get(sort_mode, html_cache['weighted']))
 
 if __name__ == '__main__':
+    # Initial cache population before starting the server
+    for mode in html_cache.keys():
+        try:
+            rows = get_leaderboard_data(mode)
+            html_cache[mode] = build_html_layout(rows, mode).encode('utf-8')
+        except Exception as e:
+            print(f"Initial cache error ({mode}): {e}")
+
     threading.Thread(target=update_cache, daemon=True).start()
-    HTTPServer(('0.0.0.0', PORT), FastDBHandler).serve_forever()
+    
+    server = ThreadedHTTPServer(('0.0.0.0', PORT), FastDBHandler)
+    print(f"Server started on port {PORT}...")
+    server.serve_forever()
