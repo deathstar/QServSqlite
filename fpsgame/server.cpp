@@ -3665,68 +3665,116 @@ best.add(clients[i]); \
         }
     }
     
-  	void autoBotBalance()
-  	{
-  	    if (!autobotbalance || !m_teammode) return;
-  	
-  	    static int lastcheck = 0;
-  	    if (lastmillis - lastcheck < 5000) return;
-  	    lastcheck = lastmillis;
-  	
-  	    int humans = 0, numbots = 0;
-  	    clientinfo *anyValidClient = NULL;
-  	
-  	    loopv(clients)
-  	    {
-  	        clientinfo *ci = clients[i];
-  	        if (!ci || !ci->connected || ci->state.state == CS_SPECTATOR) continue;
-  	        
-  	        anyValidClient = ci;
-  	        
-  	        if (ci->state.aitype != AI_NONE) numbots++; 
-  	        else humans++; 
-  	    }
-  	
-  	    if (!anyValidClient) return; 
-  	    
-  	    // Prevent autoaddbot and autobotbalance from fighting
-  	    if (autoaddbot && humans < 3) return;
-  	
-  	    int targetBots = 0;
-  	    
-  	    if (humans >= 3)
-  	    {
-  	        // humans are odd, add a bot to balance
-  	        if (humans % 2 != 0) 
-  	        {
-  	            targetBots = 1;
-  	        }
-  	        // humans are even, we don't need bots
-  	        else 
-  	        {
-  	            targetBots = 0;
-  	        }
-  	    }
-  	
-  	    if (numbots < targetBots)
-  	    {
-  	        //printf("Autobotbalance: Odd human count (%d). Adding a bot.\n", humans);
-  	        addBotHelper(anyValidClient, botskill);
-  	    }
-  	    else if (numbots > targetBots)
-  	    {
-  	        loopv(clients)
-  	        {
-  	            clientinfo *ci = clients[i];
-  	            if (ci && ci->state.aitype != AI_NONE && ci->ownernum >= 0)
-  	            {
-  	                //printf("Autobotbalance: Even human count (%d). Pruning excess bot cn: %d\n", humans, ci->clientnum);
-  	                removeBotHelper(ci);
-  	                break; 
-  	            }
-  	        }
-  	    }
-  	}
+    void autoBotBalance()
+	{
+	    if (!autobotbalance || !m_teammode) return;
+	
+	    static int lastcheck = 0;
+	    if (lastmillis - lastcheck < 3000) return; // Check every 3 seconds for faster response
+	    lastcheck = lastmillis;
+	
+	    int good_count = 0, evil_count = 0;
+	    vector<clientinfo *> good_members;
+	    vector<clientinfo *> evil_members;
+	    clientinfo *anyValidClient = NULL;
+	    int humans = 0, numbots = 0;
+	
+	    // 1. Count players and sort them directly into "good" and "evil" vectors
+	    loopv(clients)
+	    {
+	        clientinfo *ci = clients[i];
+	        if (!ci || !ci->connected || ci->state.state == CS_SPECTATOR) continue;
+	
+	        anyValidClient = ci;
+	
+	        if (ci->state.aitype != AI_NONE) numbots++;
+	        else humans++;
+	
+	        if (ci->team[0])
+	        {
+	            if (!strcasecmp(ci->team, "good")) {
+	                good_count++;
+	                good_members.add(ci);
+	            } else if (!strcasecmp(ci->team, "evil")) {
+	                evil_count++;
+	                evil_members.add(ci);
+	            }
+	        }
+	    }
+	
+	    if (!anyValidClient) return;
+	
+	    // 2. Check for team size imbalances between "good" and "evil" (e.g. 3 vs 1 split)
+	    if (abs(good_count - evil_count) >= 2)
+	    {
+	        bool goodIsHeavy = (good_count > evil_count);
+	        const char *heavy_team = goodIsHeavy ? "good" : "evil";
+	        const char *light_team = goodIsHeavy ? "evil" : "good";
+	        vector<clientinfo *> &heavy_members = goodIsHeavy ? good_members : evil_members;
+	
+	        // Find a client to move from the heavy team to the light team.
+	        // Priority 1: Look for a bot on the heavy team.
+	        // Priority 2: If no bot is found, look for a human player on the heavy team.
+	        clientinfo *client_to_move = NULL;
+	
+	        // First pass: search for a bot
+	        loopv(heavy_members)
+	        {
+	            if (heavy_members[i]->state.aitype != AI_NONE)
+	            {
+	                client_to_move = heavy_members[i];
+	                break;
+	            }
+	        }
+	
+	        // Second pass: if no bot exists on the heavy team, pick a human player
+	        if (!client_to_move)
+	        {
+	            loopv(heavy_members)
+	            {
+	                clientinfo *ci = heavy_members[i];
+	                if (ci->state.aitype == AI_NONE)
+	                {
+	                    client_to_move = ci;
+	                    break;
+	                }
+	            }
+	        }
+	
+	        if (client_to_move)
+	        {
+	            if (smode && client_to_move->state.state == CS_ALIVE) smode->changeteam(client_to_move, client_to_move->team, light_team);
+	            copystring(client_to_move->team, light_team, MAXTEAMLEN+1);
+	            sendf(-1, 1, "riisi", N_SETTEAM, client_to_move->clientnum, client_to_move->team, 0);
+	            
+	            out(ECHO_CONSOLE, "[AutobotBalance] Shifted %s from %s to %s to fix team imbalance (%d vs %d).", 
+	                colorname(client_to_move), heavy_team, light_team, good_count, evil_count);
+	            return;
+	        }
+	    }
+	
+	    // 3. Global bot count maintenance (preventing autoaddbot and autobotbalance from fighting)
+	    if (autoaddbot && humans < 3) return;
+	
+	    int targetBots = (humans >= 3 && humans % 2 != 0) ? 1 : 0;
+	
+	    if (numbots < targetBots)
+	    {
+	        addBotHelper(anyValidClient, botskill);
+	    }
+	    else if (numbots > targetBots)
+	    {
+	        loopv(clients)
+	        {
+	            clientinfo *ci = clients[i];
+	            if (ci && ci->state.aitype != AI_NONE && ci->ownernum >= 0)
+	            {
+	                removeBotHelper(ci);
+	                break; 
+	            }
+	        }
+	    }
+	}
     
 	void autoAddBot()
 	{
