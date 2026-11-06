@@ -2232,7 +2232,7 @@ namespace server {
 	        int rc = sqlite3_step(stmt);
 	        if(rc == SQLITE_DONE) 
 	        {
-	            ci->stats_saved = false;
+	            ci->stats_saved = true;
 	        }
 	        else {
 	            fprintf(stderr, "DB ERROR: Failed to save stats for %s (Code: %d)\n", ci->name, rc);
