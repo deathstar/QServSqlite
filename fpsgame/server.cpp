@@ -282,9 +282,9 @@ namespace server {
     
     void _doflagrun(clientinfo *ci, int timeused)
     {
-        if(timeused <= 500)
+        if(timeused <= 1500)
         {
-            out(ECHO_SERV, "\f0%s \f7is \f3speedhacking\f7. Good riddance.", colorname(ci));
+            out(ECHO_SERV, "\f0%s \f7is \f3speedhacking flagruns\f7. Good riddance.", colorname(ci));
             kick_queue.add(ci->clientnum);
             return;
         }
