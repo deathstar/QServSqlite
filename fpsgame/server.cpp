@@ -5274,7 +5274,6 @@ best.add(clients[i]); \
                     spinfo->state.state = CS_SPECTATOR;
                     spinfo->state.timeplayed += lastmillis - spinfo->state.lasttimeplayed;
                     if(!spinfo->local && !spinfo->privilege) aiman::removeai(spinfo);
-                    if(!spinfo->isSpecLocked) out(ECHO_SERV,"\f0%s \f7is now a spectator", colorname(spinfo));
                 }
                 else if(spinfo->state.state==CS_SPECTATOR && !val)
                 {
@@ -5282,9 +5281,7 @@ best.add(clients[i]); \
                     spinfo->state.respawn();
                     spinfo->state.lasttimeplayed = lastmillis;
                     aiman::addclient(spinfo);
-                    if(spinfo->clientmap[0] || spinfo->mapcrc) checkmaps();
-                    if(!spinfo->isSpecLocked) out(ECHO_SERV,"\f0%s \f7is no longer a spectator", colorname(spinfo));
-                    
+                    if(spinfo->clientmap[0] || spinfo->mapcrc) checkmaps();     
                 }
                 if(!spinfo->isSpecLocked) {
                     sendf(-1, 1, "ri3", N_SPECTATOR, spectator, val);
