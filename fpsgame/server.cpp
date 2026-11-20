@@ -2825,6 +2825,72 @@ namespace server {
         maprotation &rot = maprotations[curmaprotation];
         changemap(rot.map, rot.findmode(gamemode));
     }
+
+    // Intermission ballot draws only from maps configured for the current CTF mode.
+    vector<int> intermissionmapchoices;
+    bool intermissionmapballot = false;
+
+    bool startintermissionmapballot()
+    {
+        intermissionmapchoices.setsize(0);
+        intermissionmapballot = false;
+        if(!m_ctf) return false;
+        vector<int> pool;
+        loopv(maprotations)
+        {
+            maprotation &rot = maprotations[i];
+            bool duplicate = false;
+            loopvj(pool) if(!strcmp(maprotations[pool[j]].map, rot.map)) duplicate = true;
+            if(rot.modes && rot.map[0] && rot.match(gamemode, "") && strcmp(rot.map, smapname) && !duplicate) pool.add(i);
+        }
+        if(pool.length() < 3) return false;
+        loopi(3)
+        {
+            int pick = rnd(pool.length());
+            intermissionmapchoices.add(pool[pick]);
+            pool.remove(pick);
+        }
+        loopv(clients) clients[i]->mapvote[0] = 0;
+        intermissionmapballot = true;
+        sendservmsg("\f2[MAP BATTLE] \f7Type \f01\f7, \f02\f7, or \f03\f7 to choose the next map:");
+        loopv(intermissionmapchoices) sendservmsgf("\f0%d\f7: \f7%s", i+1, maprotations[intermissionmapchoices[i]].map);
+        return true;
+    }
+
+    bool castintermissionmapvote(clientinfo *ci, const char *text)
+    {
+        if(!intermissionmapballot || !ci || text[0] < '1' || text[0] > '3' || text[1]) return false;
+        if(ci->state.state == CS_SPECTATOR && !ci->privilege && !ci->local) return true;
+        int choice = text[0] - '1';
+        if(!intermissionmapchoices.inrange(choice)) return true;
+        copystring(ci->mapvote, maprotations[intermissionmapchoices[choice]].map);
+        sendf(ci->clientnum, 1, "ris", N_SERVMSG, "Your map vote has been recorded.");
+        return true;
+    }
+
+    void finishintermissionmapballot()
+    {
+        if(!intermissionmapballot || intermissionmapchoices.empty()) return;
+        int counts[3] = { 0, 0, 0 }, high = 0;
+        loopv(clients)
+        {
+            clientinfo *ci = clients[i];
+            if((ci->state.state == CS_SPECTATOR && !ci->privilege && !ci->local) || ci->state.aitype != AI_NONE) continue;
+            loopvj(intermissionmapchoices) if(!strcmp(ci->mapvote, maprotations[intermissionmapchoices[j]].map))
+            {
+                high = max(high, ++counts[j]);
+                break;
+            }
+        }
+        vector<int> winners;
+        loopv(intermissionmapchoices) if(counts[i] == high) winners.add(i);
+        int choice = winners[rnd(winners.length())];
+        const char *map = maprotations[intermissionmapchoices[choice]].map;
+        intermissionmapballot = false;
+        sendservmsgf("\f7Next map: \f6%s", map);
+        changemap(map, gamemode);
+    }
+
     
     struct votecount
     {
@@ -3244,6 +3310,7 @@ best.add(clients[i]); \
             changegamespeed(100);
             interm = gamemillis + 10000;
             printbeststats();
+            if(startintermissionmapballot()) interm = gamemillis + 10000;
         }
     }
     
@@ -3889,7 +3956,8 @@ best.add(clients[i]); \
             {
                 if(demorecord) enddemorecord();
                 interm = -1;
-                checkvotes(true);
+                if(intermissionmapballot) finishintermissionmapballot();
+                else checkvotes(true);
             }
         }
        	//multi kill
@@ -4922,6 +4990,7 @@ best.add(clients[i]); \
                     ci->spamlines = 0;
                 }
                 ci->lasttext = totalmillis;
+                if(interm > 0 && castintermissionmapvote(ci, text)) break;
                 if(text[0] == '#') {
                     char *c = text;
                     while(*c && isspace(*c)) c++;
