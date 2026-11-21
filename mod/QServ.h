@@ -127,7 +127,7 @@ namespace server {
             GeoIP *m_geoip;
             GeoIP *city_geoip;
             int m_lastcommand;
-            SCommand m_command[50];
+            SCommand m_command[128];
             int m_oLangWarn[1000];
             int m_oTimes;
             void (*m_checkolangCallback)(int, char*);
