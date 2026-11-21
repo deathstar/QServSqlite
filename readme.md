@@ -385,7 +385,7 @@ Install MSYS2:
 
 https://www.msys2.org/
 
-Open MSYS2 MINGW64 and update packages:
+Open MSYS2 UCRT64 and update packages:
 
 ```bash
 pacman -Syu
