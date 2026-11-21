@@ -322,11 +322,8 @@ namespace server {
 
         if(timeused <= 1500)
         {
-            ci->is_speedhacking = true;
-            out(ECHO_CONSOLE, "[Anticheat] %s is speedhacking flagruns. Not logging that flagrun and %s player.",
-                colorname(ci), banspeedhackers ? "banning" : "kicking");
-            sendadminmsg("%s scored a sub 1.5s flagrun. Not logging that flagrun and %s player.",
-                         colorname(ci), banspeedhackers ? "banning" : "kicking");
+            out(ECHO_CONSOLE, "[Anticheat] %s is speedhacking flagruns. Not logging that flagrun.");
+            sendadminmsg("%s scored a sub 1.5s flagrun. Not logging that flagrun.", colorname(ci));
             kick_queue.add(ci->clientnum);
             return;
         }
