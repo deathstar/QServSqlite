@@ -206,188 +206,210 @@ namespace server {
     #include <string>
     #include <vector>
     
-    struct _flagrun
+	struct _flagrun
     {
         std::string map;
         int gamemode;
         std::string name;
         int timeused;
     };
-    
+
     int get_ctf_category(int mode)
     {
         switch(mode)
         {
-            case 11: return 1; // InstaCTF
-            case 12: return 2; // EfficCTF
-            case 17: return 3; // Standard CTF
+            case 12: return 1; // InstaCTF
+            case 17: return 2; // EfficCTF
+            case 11: return 3; // Standard CTF
             default: return 0; // Not a trackable CTF mode
         }
     }
-	
-	bool is_flagrun_match(const _flagrun &fr, int current_mode, const char *current_map)
-	{
-	    int cat = get_ctf_category(current_mode);
-	    if(cat == 0) return false; 
-	    
-	    return (get_ctf_category(fr.gamemode) == cat) && (fr.map == current_map);
-	}
-    
-    std::vector<_flagrun> _flagruns;
-    int _newflagrun = 0;
 
-	void _loadflagruns()
-	{
-	    _flagruns.clear();
-	    stream *f = openutf8file("config/flagruns.cfg", "r");
-	    if(!f) return;
-	
-	    string line;
-	    while(f->getline(line, sizeof(line)))
-	    {
-	        // 1. Skip comments and empty lines
-	        if(line[0] == '/' || line[0] == '\0') continue;
-	
-	        std::string sline(line);
-	        std::stringstream ss(sline);
-	        std::string header, mapname, playername;
-	        int mode, timeused;
-	
-	        // 2. Validate header and extract fields
-	        // Format: flagrun [mode] "[map]" [time] "[name]"
-	        if (!(ss >> header >> mode)) continue; 
-	        if (header != "flagrun") continue;
-	
-	        // 3. Extract mapname (handles potential spaces in quotes)
-	        if (!std::getline(ss >> std::ws, mapname, '\"')) continue; // Skip initial quote
-	        if (!std::getline(ss, mapname, '\"')) continue;          // Get map content
-	
-	        // 4. Extract time
-	        if (!(ss >> timeused)) continue;
-	
-	        // 5. Extract playername
-	        if (!std::getline(ss >> std::ws, playername, '\"')) continue;
-	        if (!std::getline(ss, playername, '\"')) continue;
-	
-	        // 6. Final safety check: validate the data before pushing
-	        if (mode < 0 || mode > 50 || timeused <= 0 || mapname.empty()) {
-	            printf("DEBUG: Skipping malformed flagrun entry: %s\n", line);
-	            continue;
-	        }
-	
-	        _flagruns.push_back({mapname, mode, playername, timeused});
-	    }
-	    delete f;
-	}
-    
-    void _doflagrun(clientinfo *ci, int timeused)
+    bool is_flagrun_match(const _flagrun &fr, int current_mode, const char *current_map)
     {
-        if(timeused <= 1500)
-        {
-            out(ECHO_SERV, "\f0%s \f7is \f3speedhacking flagruns\f7. Good riddance.", colorname(ci));
-            kick_queue.add(ci->clientnum);
-            return;
-        }
-        
-        if(serverflagruns)
-        {
-            _flagrun *fr = nullptr;
-            for(auto &f : _flagruns)
-            {
+        int cat = get_ctf_category(current_mode);
+        if(cat == 0) return false;
 
-                if(is_flagrun_match(f, gamemode, smapname))
-                { 
-                    fr = &f; 
-                    break; 
-                }
-            }
-            
-            bool isbest = false;
-            if(!fr)
+        return (get_ctf_category(fr.gamemode) == cat) && (fr.map == current_map);
+    }
+
+    static std::string strip_flagrun_colors(const char *src)
+    {
+        std::string cleaned;
+        if(!src) return cleaned;
+        while(*src)
+        {
+            if(*src == '\f')
             {
-                if(_flagruns.size() >= 1024) return;
-                string cleanname;
-				const char *src = ci->name;
-				char *dst = cleanname;
-				while(*src)
-				{
-				    if(*src == '\f') // Found a color code
-				    {
-				        src++; // Skip the '\f'
-				        if(*src) src++; // Skip the color digit
-				    }
-				    else *dst++ = *src++;
-				}
-				*dst = '\0'; // Null-terminate the new string
-				_flagruns.push_back({smapname, gamemode, cleanname, timeused});
-                fr = &_flagruns.back();
-                isbest = true;
+                src++;
+                if(*src) src++;
             }
             else
             {
-                isbest = (timeused <= fr->timeused);
-                if(isbest)
-                {
-                    _newflagrun = 1;
-                    fr->name = ci->name;
-                    fr->timeused = timeused;
-                    fr->gamemode = gamemode; //update record to current mode
-                    printf("DEBUG: Record UPDATED/CREATED. Now: %s | Mode: %d | Time: %d\n", 
-            		fr->name.c_str(), fr->gamemode, fr->timeused);
-            		_storeflagruns();
-                }
+                cleaned.push_back(*src++);
             }
-    
-            string msg;
-            if(isbest) formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best\f7)",
-                                          colorname(ci), timeused/1000, (timeused%1000)/10);
-            else formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best: \f0%s \f7%i.%02i\f7)",
-                                   colorname(ci), timeused/1000, (timeused%1000)/10, fr->name.c_str(), fr->timeused/1000, (fr->timeused%1000)/10);
-            sendservmsg(msg);
         }
+        return cleaned;
     }
-    
-    void addflagrun(int mode, const char *map, int timeused, const char *name)
+
+    std::vector<_flagrun> _flagruns;
+    int _newflagrun = 0;
+
+    void _loadflagruns()
     {
-        for(auto &f : _flagruns)
+        _flagruns.clear();
+        stream *f = openutf8file("config/flagruns.cfg", "r");
+        if(!f) return;
+
+        string line;
+        while(f->getline(line, sizeof(line)))
         {
-            if(f.gamemode == mode && f.map == map)
-            {
-                f.name = name;
-                f.timeused = timeused;
-                return;
+            // 1. Skip comments and empty lines
+            if(line[0] == '/' || line[0] == '#' || line[0] == '\0') continue;
+
+            std::string sline(line);
+            std::stringstream ss(sline);
+            std::string header, mapname, playername;
+            int mode, timeused;
+
+            // 2. Validate header and extract fields
+            // Format: flagrun [mode] "[map]" [time] "[name]"
+            if (!(ss >> header >> mode)) continue;
+            if (header != "flagrun") continue;
+
+            // 3. Extract mapname (handles potential spaces in quotes)
+            if (!std::getline(ss >> std::ws, mapname, '\"')) continue; // Skip initial quote
+            if (!std::getline(ss, mapname, '\"')) continue;          // Get map content
+
+            // 4. Extract time
+            if (!(ss >> timeused)) continue;
+
+            // 5. Extract playername
+            if (!std::getline(ss >> std::ws, playername, '\"')) continue;
+            if (!std::getline(ss, playername, '\"')) continue;
+
+            // 6. Final safety check: validate the data before pushing
+            if (mode < 0 || mode > 50 || timeused <= 0 || mapname.empty()) {
+                printf("DEBUG: Skipping malformed flagrun entry: %s\n", line);
+                continue;
             }
+
+            _flagruns.push_back({mapname, mode, strip_flagrun_colors(playername.c_str()), timeused});
         }
-        
-        if(_flagruns.size() < 1024)
-        {
-            _flagruns.push_back({map, mode, name, timeused});
-        }
+        delete f;
     }
-    ICOMMAND(flagrun, "isis", (int *i, const char *s, int *j, const char *z), addflagrun(*i, s, *j, z));
-    
+
     void _storeflagruns()
     {
         if(!serverflagruns) return;
-    
+
         stream *f = openutf8file("config/flagruns.cfg", "w");
         if(f)
         {
             f->printf("//Automatically generated by QServ: lists best flagruns\n\n");
             for(auto &f_run : _flagruns)
             {
-                f->printf("flagrun %i \"%s\" %i \"%s\"\n", 
+                f->printf("flagrun %i \"%s\" %i \"%s\"\n",
                     f_run.gamemode, f_run.map.c_str(), f_run.timeused, f_run.name.c_str());
             }
-            delete f; 
+            delete f;
         }
     }
 
-    
-   void showflagrun(int cn)
+    void _doflagrun(clientinfo *ci, int timeused)
+    {
+        if(!ci) return;
+
+        if(timeused <= 1500)
+        {
+            ci->is_speedhacking = true;
+            out(ECHO_CONSOLE, "[Anticheat] %s is speedhacking flagruns. Not logging that flagrun and %s player.",
+                colorname(ci), banspeedhackers ? "banning" : "kicking");
+            sendadminmsg("%s scored a sub 1.5s flagrun. Not logging that flagrun and %s player.",
+                         colorname(ci), banspeedhackers ? "banning" : "kicking");
+            kick_queue.add(ci->clientnum);
+            return;
+        }
+
+        if(!serverflagruns) return;
+        if(get_ctf_category(gamemode) == 0 || smapname[0] == '\0') return;
+
+        _flagrun *fr = nullptr;
+        for(auto &f : _flagruns)
+        {
+            if(f.gamemode == gamemode && f.map == smapname)
+            {
+                fr = &f;
+                break;
+            }
+        }
+
+        std::string clean_player = strip_flagrun_colors(ci->name);
+        if(clean_player.empty()) clean_player = "Player";
+
+        bool isbest = false;
+        if(!fr)
+        {
+            if(_flagruns.size() >= 1024) return;
+            _flagruns.push_back({smapname, gamemode, clean_player, timeused});
+            fr = &_flagruns.back();
+            isbest = true;
+            _newflagrun = 1;
+            _storeflagruns();
+        }
+        else if(timeused < fr->timeused)
+        {
+            isbest = true;
+            _newflagrun = 1;
+            fr->name = clean_player;
+            fr->timeused = timeused;
+            fr->gamemode = gamemode;
+            printf("Flagrun record updated. Now: %s | Mode: %d | Time: %d\n",
+                   fr->name.c_str(), fr->gamemode, fr->timeused);
+            _storeflagruns();
+        }
+
+        string msg;
+        if(isbest)
+        {
+            formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best\f7)",
+                              colorname(ci), timeused/1000, (timeused%1000)/10);
+        }
+        else
+        {
+            formatstring(msg)("\f0%s \f7scored a flagrun in \f7%i.%02i \f7seconds (\f2best: \f0%s \f7%i.%02i\f7)",
+                              colorname(ci), timeused/1000, (timeused%1000)/10,
+                              fr->name.c_str(), fr->timeused/1000, (fr->timeused%1000)/10);
+        }
+        sendservmsg(msg);
+    }
+
+    void addflagrun(int mode, const char *map, int timeused, const char *name)
+    {
+        if(!map || !map[0] || timeused <= 0) return;
+        std::string clean_player = strip_flagrun_colors(name);
+
+        for(auto &f : _flagruns)
+        {
+            if(f.gamemode == mode && f.map == map)
+            {
+                f.name = clean_player;
+                f.timeused = timeused;
+                return;
+            }
+        }
+
+        if(_flagruns.size() < 1024)
+        {
+            _flagruns.push_back({map, mode, clean_player, timeused});
+        }
+    }
+    ICOMMAND(flagrun, "isis", (int *i, const char *s, int *j, const char *z), addflagrun(*i, s, *j, z));
+
+    void showflagrun(int cn)
     {
         extern clientinfo *getinfo(int n);
-        
+
         auto local_concat = [](char *d, size_t bufsize, const char *fmt, ...) {
             va_list v;
             va_start(v, fmt);
@@ -396,70 +418,60 @@ namespace server {
             if (remaining > 0) vsnprintf(p, remaining, fmt, v);
             va_end(v);
         };
-        
+
         clientinfo *ci = getinfo(cn);
         if(!ci) return;
-        if(smapname[0] == '\0') 
+        if(smapname[0] == '\0')
         {
             sendf(cn, 1, "ris", N_SERVMSG, "Error: No map loaded yet.");
             return;
         }
-    
+
         _flagrun *maprecord = nullptr;
         _flagrun *personalbest = nullptr;
-        
-        string clean_ci_name;
-        const char *src = ci->name;
-        char *dst = clean_ci_name;
-        while(*src)
-        {
-            if(*src == '\f') { src++; if(*src) src++; }
-            else *dst++ = *src++;
-        }
-        *dst = '\0';
-    
+        std::string clean_ci_name = strip_flagrun_colors(ci->name);
+
         for(auto &f : _flagruns)
         {
             if(is_flagrun_match(f, gamemode, smapname))
             {
-                if(!maprecord || f.timeused < maprecord->timeused) 
+                if(!maprecord || f.timeused < maprecord->timeused)
                     maprecord = &f;
-                
-                if(strcasecmp(f.name.c_str(), clean_ci_name) == 0)
+
+                if(strcasecmp(f.name.c_str(), clean_ci_name.c_str()) == 0)
                 {
                     if(!personalbest || f.timeused < personalbest->timeused)
                         personalbest = &f;
                 }
             }
         }
-    
+
         char msg[1024];
-        msg[0] = '\0'; 
-        
+        msg[0] = '\0';
+
         local_concat(msg, sizeof(msg), "Flagrun for \f0%s \f7(\f1%s\f7): ", smapname, modename(gamemode, "unknown"));
-        
+
         if(maprecord)
         {
-            local_concat(msg, sizeof(msg), "Best: \f0%s \f7(\f2%i.%02i \f7s in \f1%s\f7) ", 
-                maprecord->name.c_str(), 
-                maprecord->timeused/1000, (maprecord->timeused%1000)/10,
-                modename(maprecord->gamemode, "unknown"));
+            local_concat(msg, sizeof(msg), "Best: \f0%s \f7(\f2%i.%02is\f7) ",
+                maprecord->name.c_str(),
+                maprecord->timeused/1000, (maprecord->timeused%1000)/10);
         }
         else
         {
             local_concat(msg, sizeof(msg), "No best time yet. ");
         }
-    
+
         if(personalbest && maprecord != personalbest)
         {
-            local_concat(msg, sizeof(msg), "| Your PB: \f2%i.%02i \f7s", 
+            local_concat(msg, sizeof(msg), "| Your PB: \f2%i.%02i \f7s",
                 personalbest->timeused/1000, (personalbest->timeused%1000)/10);
         }
         else if(personalbest && maprecord == personalbest)
         {
             local_concat(msg, sizeof(msg), "| \f2(You hold the record!)");
         }
-        
+
         sendf(cn, 1, "ris", N_SERVMSG, msg);
     }
     
