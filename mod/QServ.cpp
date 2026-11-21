@@ -103,8 +103,8 @@ namespace server {
     
     void QServ::newcommand(const char *name, const char *desc, int priv, void (*callback)(int, char **args, int),
                            int args) {
-        if(m_lastcommand >= 50) {
-    		logoutf("[ERROR] Cannot register command '%s': Max limit of 50 reached.", name);
+        if(m_lastcommand >= 128) {
+    		logoutf("[ERROR] Cannot register command '%s': Max limit of 128 reached.", name);
     		return;
 		}
         snprintf(m_command[m_lastcommand].name, sizeof(m_command[m_lastcommand].name), "%c%s", m_cmdprefix, name);
